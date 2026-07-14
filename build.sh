@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Compiles SpecConvert and packages it into out/spec-convert.jar
 set -euo pipefail
 
@@ -17,11 +16,11 @@ echo "Extracting dependencies..."
 EXTRACT_DIR="$OUT/uber"
 rm -rf "$EXTRACT_DIR"
 mkdir -p "$EXTRACT_DIR"
-# Unpack each dependency JAR (exclude existing manifests — we supply our own)
+# Unpack each dependency JAR
 for jar in "$LIB"/*.jar; do
     (cd "$EXTRACT_DIR" && jar xf "$jar")
 done
-# Overlay our compiled classes on top
+# Overlay compiled classes on top
 cp -r "$OUT/classes/." "$EXTRACT_DIR/"
 
 echo "Packaging fat jar..."

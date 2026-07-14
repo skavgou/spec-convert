@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Runs SpecConvert. Build first with: ./build.sh
 # Usage: ./run.sh <input-file> [output-file]
 set -euo pipefail
