@@ -7,11 +7,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import io.quarkus.runtime.QuarkusApplication;
-import io.quarkus.runtime.annotations.QuarkusMain;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,17 +18,13 @@ import java.util.regex.Pattern;
  * SpecConvert — CNCF Serverless Workflow spec 0.8 → 1.0 converter.
  *
  * Usage:
- *   java -jar spec-convert-runner.jar <input-file> <output-file>
+ *   java com.specconvert.SpecConvert <input-file> [output-file]
  *
  * If no output file is given the converted document is printed to stdout.
  * Both JSON (.json) and YAML (.yaml / .yml) input files are supported.
  * The output format matches the input format unless overridden.
  */
-@QuarkusMain
-@Command(name = "spec-convert",
-         mixinStandardHelpOptions = true,
-         description = "Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.")
-public class SpecConvert implements Runnable, QuarkusApplication {
+public class SpecConvert {
 
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
@@ -44,36 +35,32 @@ public class SpecConvert implements Runnable, QuarkusApplication {
                     .build())
             .enable(SerializationFeature.INDENT_OUTPUT);
 
-    // params
-    @Parameters(index = "0", description = "Path to the input workflow file (JSON or YAML).")
-    Path inputPath;
-    @Parameters(index = "1", arity = "0..1", description = "Optional path to the output file.")
-    Path outputPath;
-
-    @Override
-    public int run(String... args) {
-        return new CommandLine(new SpecConvert()).execute(args);
-    }
-
-    @Override
-    public void run() {
-        try {
-            JsonNode root = read(inputPath);
-            JsonNode converted = convert(root);
-
-            boolean useYaml = isYaml(outputPath != null ? outputPath : inputPath);
-            String output = serialise(converted, useYaml);
-
-            if (outputPath != null) {
-                Files.writeString(outputPath, output);
-                System.out.println("Wrote converted file to: " + outputPath);
-            } else {
-                System.out.println(output);
-            }
-        } catch (IOException e) {
-            System.err.println("[ERROR] " + e.getMessage());
-            throw new CommandLine.ExecutionException(new CommandLine(this), e.getMessage(), e);
+    public static void main(String[] args) throws IOException {
+        if (args.length == 0 || "-h".equals(args[0]) || "--help".equals(args[0])) {
+            printUsage();
+            return;
         }
+
+        if (args.length > 2) {
+            throw new IllegalArgumentException("Expected 1 or 2 arguments.");
+        }
+
+        Path inputPath = Path.of(args[0]);
+        Path outputPath = args.length == 2 ? Path.of(args[1]) : null;
+
+        JsonNode root = read(inputPath);
+        JsonNode converted = convert(root);
+
+        boolean useYaml = isYaml(outputPath != null ? outputPath : inputPath);
+        String output = serialise(converted, useYaml);
+
+        if (outputPath != null) {
+            Files.writeString(outputPath, output);
+            System.out.println("Wrote converted file to: " + outputPath);
+            return;
+        }
+
+        System.out.println(output);
     }
 
     /**
@@ -320,6 +307,11 @@ public class SpecConvert implements Runnable, QuarkusApplication {
         return waitBlock;
     }
 
+
+    private static void printUsage() {
+        System.out.println("Usage: java -jar spec-convert.jar <input-file> [output-file]");
+        System.out.println("Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.");
+    }
 
     /**
      * Serialise a JsonNode back to a String in either JSON or YAML.
