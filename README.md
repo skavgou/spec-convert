@@ -39,8 +39,8 @@ Compiles the source and produces `out/spec-convert.jar`.
 # Print converted JSON to stdout
 ./run.sh samples/hello.json
 
-# Write converted YAML to a file
-./run.sh samples/hello.yaml results/hello-converted.yaml
+# Write converted JSON to a file
+./run.sh samples/hello.json results/hello-converted.json
 ```
 
 ---
