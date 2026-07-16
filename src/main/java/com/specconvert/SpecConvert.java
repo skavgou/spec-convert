@@ -68,7 +68,7 @@ public class SpecConvert {
             throw new IllegalArgumentException("Expected 1 or 2 arguments.");
         }
 
-        Path inputPath  = Path.of(args[0]);
+        Path inputPath = Path.of(args[0]);
         Path outputPath = args.length == 2 ? Path.of(args[1]) : null;
 
         io.serverlessworkflow.api.Workflow wf08 = read(inputPath);
