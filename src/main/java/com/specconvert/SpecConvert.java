@@ -147,9 +147,9 @@ public class SpecConvert {
      * Each state becomes a TaskItem keyed by the state's name.
      *
      * Handled mappings:
-     *   inject  → set    (state data → set variables)
-     *   sleep   → wait   (ISO 8601 duration → DurationInline)
-     *   switch  → switch (dataConditions + defaultCondition)
+     *   inject  - set    (state data → set variables)
+     *   sleep   - wait   (ISO 8601 duration → DurationInline)
+     *   switch  - switch (dataConditions + defaultCondition)
      */
     private static List<TaskItem> buildDo(io.serverlessworkflow.api.Workflow src) {
         List<TaskItem> items = new ArrayList<>();
