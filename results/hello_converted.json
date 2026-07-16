@@ -1,0 +1,43 @@
+{
+  "document" : {
+    "dsl" : "1.0.0",
+    "namespace" : "default",
+    "name" : "helloworld",
+    "version" : "1.0"
+  },
+  "do" : [ {
+    "SleepFiveSeconds" : {
+      "wait" : {
+        "days" : 0,
+        "hours" : 0,
+        "minutes" : 0,
+        "seconds" : 5,
+        "milliseconds" : 0
+      }
+    }
+  }, {
+    "Hello State" : {
+      "set" : {
+        "result" : "Hello World!"
+      }
+    }
+  }, {
+    "CheckApplicant" : {
+      "switch" : [ {
+        "applicantIsAdult" : {
+          "when" : "fn:isAdult",
+          "then" : "ApproveApplication"
+        }
+      }, {
+        "applicantIsMinor" : {
+          "when" : "fn:isMinor",
+          "then" : "RejectApplication"
+        }
+      }, {
+        "default" : {
+          "then" : "RejectApplication"
+        }
+      } ]
+    }
+  } ]
+}

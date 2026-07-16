@@ -1,39 +1,62 @@
 package com.specconvert;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+// 0.8
+import io.serverlessworkflow.api.mapper.JsonObjectMapper;
+import io.serverlessworkflow.api.mapper.YamlObjectMapper;
+import io.serverlessworkflow.api.states.InjectState;
+import io.serverlessworkflow.api.states.SleepState;
+import io.serverlessworkflow.api.states.SwitchState;
+import io.serverlessworkflow.api.switchconditions.DataCondition;
+import io.serverlessworkflow.api.defaultdef.DefaultConditionDefinition;
+import io.serverlessworkflow.api.interfaces.State;
+import io.serverlessworkflow.api.transitions.Transition;
+
+// 1.0
+import io.serverlessworkflow.api.types.Document;
+import io.serverlessworkflow.api.types.DurationInline;
+import io.serverlessworkflow.api.types.FlowDirective;
+import io.serverlessworkflow.api.types.Set;
+import io.serverlessworkflow.api.types.SetTask;
+import io.serverlessworkflow.api.types.SetTaskConfiguration;
+import io.serverlessworkflow.api.types.SwitchCase;
+import io.serverlessworkflow.api.types.SwitchItem;
+import io.serverlessworkflow.api.types.SwitchTask;
+import io.serverlessworkflow.api.types.Task;
+import io.serverlessworkflow.api.types.TaskItem;
+import io.serverlessworkflow.api.types.TimeoutAfter;
+import io.serverlessworkflow.api.types.WaitTask;
+import io.serverlessworkflow.api.WorkflowFormat;
+import io.serverlessworkflow.api.WorkflowWriter;
+
+// Workflow10 = io.serverlessworkflow.api.types.Workflow  (1.0 output)
+// Workflow08 = io.serverlessworkflow.api.Workflow        (0.8 input, referenced by FQN)
+
+/** MixIn that suppresses zero-valued fields on DurationInline during serialisation. */
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+interface DurationInlineMixIn {}
+
 /**
- * SpecConvert — CNCF Serverless Workflow spec 0.8 → 1.0 converter.
+ * SpecConvert — CNCF Serverless Workflow spec 0.8 -> 1.0 converter.
+ *
+ * Input  is parsed via the 0.8 SDK (serverlessworkflow-api 4.1.0.Final).
+ * Output is built via the 1.0 SDK (serverlessworkflow-types 7.25.0.Final).
  *
  * Usage:
- *   java com.specconvert.SpecConvert <input-file> [output-file]
+ *   java -jar spec-convert.jar <input-file> [output-file]
  *
  * If no output file is given the converted document is printed to stdout.
  * Both JSON (.json) and YAML (.yaml / .yml) input files are supported.
  * The output format matches the input format unless overridden.
  */
 public class SpecConvert {
-
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper()
-            .enable(SerializationFeature.INDENT_OUTPUT);
-
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(
-            YAMLFactory.builder()
-                    .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
-                    .build())
-            .enable(SerializationFeature.INDENT_OUTPUT);
 
     public static void main(String[] args) throws IOException {
         if (args.length == 0 || "-h".equals(args[0]) || "--help".equals(args[0])) {
@@ -45,49 +68,47 @@ public class SpecConvert {
             throw new IllegalArgumentException("Expected 1 or 2 arguments.");
         }
 
-        Path inputPath = Path.of(args[0]);
+        Path inputPath  = Path.of(args[0]);
         Path outputPath = args.length == 2 ? Path.of(args[1]) : null;
 
-        JsonNode root = read(inputPath);
-        JsonNode converted = convert(root);
+        io.serverlessworkflow.api.Workflow wf08 = read(inputPath);
+        io.serverlessworkflow.api.types.Workflow wf10 = convert(wf08);
 
-        boolean useYaml = isYaml(outputPath != null ? outputPath : inputPath);
-        String output = serialise(converted, useYaml);
+        WorkflowFormat format = outputPath != null
+                ? WorkflowFormat.fromPath(outputPath)
+                : WorkflowFormat.fromPath(inputPath);
+
+        // Suppress zero-valued duration fields (days:0, hours:0, etc.) from the output
+        format.mapper().addMixIn(DurationInline.class, DurationInlineMixIn.class);
 
         if (outputPath != null) {
-            Files.writeString(outputPath, output);
+            WorkflowWriter.writeWorkflow(outputPath, wf10, format);
             System.out.println("Wrote converted file to: " + outputPath);
-            return;
+        } else {
+            System.out.println(WorkflowWriter.workflowAsString(wf10, format));
         }
-
-        System.out.println(output);
     }
 
     /**
-     * Parse a JSON or YAML file into a Jackson {@link JsonNode} tree.
+     * Parse a JSON or YAML file into a 0.8 workflow instance.
      */
-    public static JsonNode read(Path path) throws IOException {
-        ObjectMapper mapper = isYaml(path) ? YAML_MAPPER : JSON_MAPPER;
-        return mapper.readTree(path.toFile());
+    public static io.serverlessworkflow.api.Workflow read(Path path) throws IOException {
+        if (isYaml(path)) {
+            return new YamlObjectMapper().readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
+        } else {
+            return new JsonObjectMapper().readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
+        }
     }
 
-
     /**
-     * Convert a 0.8 workflow document into a new 1.0 document structure.
-     * The output is a freshly constructed object — nothing from the source
-     * document is mutated or carried over verbatim.
+     * Convert a parsed 0.8 workflow into 1.0.
      */
-    public static JsonNode convert(JsonNode root) {
-        if (!root.isObject()) {
-            throw new IllegalArgumentException("Root of the workflow document must be a JSON object.");
-        }
+    public static io.serverlessworkflow.api.types.Workflow convert(
+            io.serverlessworkflow.api.Workflow src) {
 
-        ObjectNode out = JSON_MAPPER.createObjectNode();
-
-        // 10 is split into "document" and "do" fields
-        out.set("document", buildDocument((ObjectNode) root));
-        out.set("do", buildDo((ObjectNode) root));
-        return out;
+        Document document = buildDocument(src);
+        List<TaskItem> doList = buildDo(src);
+        return new io.serverlessworkflow.api.types.Workflow(document, doList);
     }
 
     // ---------------------------------------------------------------
@@ -97,134 +118,163 @@ public class SpecConvert {
     /**
      * Build the top-level document block from 0.8 fields
      */
-    private static ObjectNode buildDocument(ObjectNode src) {
-        ObjectNode document = JSON_MAPPER.createObjectNode();
+    private static Document buildDocument(io.serverlessworkflow.api.Workflow src) {
+        // dsl — always "1.0.0" for output
+        String dsl = "1.0.0";
+        System.err.println("[INFO] dsl set to " + dsl);
 
-        // dsl — always 1.0.0
-        document.put("dsl", "1.0.0");
-        System.err.println("[INFO] dsl set to 1.0.0");
-
-        // namespace — use source value or fall back to "default"
-        String namespace = src.has("namespace")
-                ? src.get("namespace").asText()
-                : "default";
-        document.put("namespace", namespace);
+        // namespace — 0.8 spec has no namespace field; fall back to "default"
+        String namespace = "default";
         System.err.println("[INFO] namespace set to " + namespace);
 
-        // name — mapped from "id"
-        if (src.has("id")) {
-            String docId = src.get("id").asText();
-            document.put("name", docId);
-            System.err.println("[INFO] name field set to " + docId);
-        }
+        // name — mapped from 0.8 "id"
+        String name = src.getId() != null ? src.getId() : "unnamed";
+        System.err.println("[INFO] name set to " + name);
 
         // version — carried over as-is
-        if (src.has("version")) {
-            document.put("version", src.get("version").asText());
-            System.err.println("[INFO] version field transferred");
+        String version = src.getVersion() != null ? src.getVersion() : "0.0.1";
+        System.err.println("[INFO] version set to " + version);
+
+        return new Document(dsl, namespace, name, version);
+    }
+
+    // -----------------------------------------------------------------------
+    // 1.0 do-list builder
+    // -----------------------------------------------------------------------
+
+    /**
+     * Build the 1.0 do block from the 0.8 states list.
+     * Each state becomes a TaskItem keyed by the state's name.
+     *
+     * Handled mappings:
+     *   inject  → set    (state data → set variables)
+     *   sleep   → wait   (ISO 8601 duration → DurationInline)
+     *   switch  → switch (dataConditions + defaultCondition)
+     */
+    private static List<TaskItem> buildDo(io.serverlessworkflow.api.Workflow src) {
+        List<TaskItem> items = new ArrayList<>();
+
+        if (src.getStates() == null) {
+            return items;
         }
 
-        return document;
+        for (State state : src.getStates()) {
+            String stateName = state.getName() != null ? state.getName() : "unnamed";
+
+            if (state instanceof InjectState) {
+                items.add(handleInject(stateName, (InjectState) state));
+
+            } else if (state instanceof SleepState) {
+                String duration = ((SleepState) state).getDuration();
+                if (duration == null) duration = "PT0S";
+                items.add(new TaskItem(stateName, new Task().withWaitTask(handleWait(duration))));
+
+            } else if (state instanceof SwitchState) {
+                items.add(handleSwitch(stateName, (SwitchState) state));
+
+            } else {
+                System.err.println("[WARN] Unsupported state type for state '"
+                        + stateName + "' (" + state.getClass().getSimpleName() + "); skipping.");
+            }
+        }
+
+        return items;
+    }
+
+    private static TaskItem handleInject(String name, InjectState state) {
+        SetTaskConfiguration cfg = new SetTaskConfiguration();
+
+        if (state.getData() != null && state.getData().isObject()) {
+            state.getData().fields().forEachRemaining(entry ->
+                    cfg.setAdditionalProperty(entry.getKey(), entry.getValue())
+            );
+        }
+
+        SetTask setTask = new SetTask().withSet(new Set().withSetTaskConfiguration(cfg));
+        return new TaskItem(name, new Task().withSetTask(setTask));
     }
 
     /**
-     * Build the do array from the 0.8 states array.
-     * Each state becomes a named entry keyed by the state's name.
-     * Currently handles:
-     *   inject → set: uses state's 'data' field
-     *   sleep → wait: uses state's time metrics
-     *   switch → switch: copies state data as best as possible. 
-     *      Cannot perform a true conversion, leaves warning for user
+     * Parse an ISO 8601 duration string (e.g. "P2DT3H4M") into total seconds,
+     * then build a 1.0 wait block:
+     * { "wait": { "seconds": 183840 } }
      */
-    private static ArrayNode buildDo(ObjectNode src) {
-        ArrayNode doArray = JSON_MAPPER.createArrayNode();
+    private static WaitTask handleWait(String iso8601Duration) {
+        Pattern pattern = Pattern.compile(
+            "P(?:(\\d+)Y)?(?:(\\d+)M)?(?:(\\d+)D)?(?:T(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?)?"
+        );
+        Matcher m = pattern.matcher(iso8601Duration);
 
-        JsonNode states = src.get("states");
-        if (states == null || !states.isArray()) {
-            return doArray;
+        if (!m.matches()) {
+            throw new IllegalArgumentException("Invalid ISO 8601 duration: " + iso8601Duration);
         }
 
-        for (JsonNode stateNode : states) {
-            if (!stateNode.isObject()) continue;
-            ObjectNode state = (ObjectNode) stateNode;
+        long years   = m.group(1) != null ? Long.parseLong(m.group(1)) : 0;
+        long months  = m.group(2) != null ? Long.parseLong(m.group(2)) : 0;
+        long days    = m.group(3) != null ? Long.parseLong(m.group(3)) : 0;
+        long  hours   = m.group(4) != null ? Integer.parseInt(m.group(4)) : 0;
+        long  minutes = m.group(5) != null ? Integer.parseInt(m.group(5)) : 0;
+        long  seconds = m.group(6) != null ? Integer.parseInt(m.group(6)) : 0;
 
-            String name = state.has("name") ? state.get("name").asText() : "unnamed";
-            String type = state.has("type") ? state.get("type").asText() : "";
+        // Fold years/months into days (approximate)
+        long totalDays = days + years * 365L + months * 30L;
 
-            ObjectNode stateEntry = JSON_MAPPER.createObjectNode();
+        // Convert each unit type to seconds
+        years *= 365 * 86400;
+        months *= 30 * 86400;
+        days *= 86400;
+        hours *= 3600;
+        minutes *= 60;
+        int totalSeconds = (int) (totalDays + hours + minutes + seconds);
 
-            switch (type) {
-                case "inject":
-                    handleInject(state, stateEntry, name);
-                    break;
-                case "sleep":
-                    String duration = state.has("duration") ? state.get("duration").asText() : "PT0S";
-                    stateEntry.set(name, buildWait(duration));
-                    break;
-                case "switch":
-                    handleSwitch(state, stateEntry, name);
-                    break;
-                default:
-                    // Unknown state type — carry the raw state over under its name with a warning
-                    System.err.println("[WARN] Unknown state type '" + type + "' for state '" + name + "'; carrying over as-is.");
-                    stateEntry.set(name, state);
-            }
+        DurationInline dur = new DurationInline()
+                .withSeconds(totalSeconds);
 
-            doArray.add(stateEntry);
-        }
-
-        return doArray;
+        return new WaitTask().withWait(new TimeoutAfter().withDurationInline(dur));
     }
 
-    private static void handleInject(ObjectNode state, ObjectNode stateEntry, String name) {
-        ObjectNode setBlock = JSON_MAPPER.createObjectNode();
-        if (state.has("data")) {
-            setBlock.setAll((ObjectNode) state.get("data"));
-        }
-        ObjectNode setWrapper = JSON_MAPPER.createObjectNode();
-        setWrapper.set("set", setBlock);
-        stateEntry.set(name, setWrapper);
-    }
+    private static TaskItem handleSwitch(String name, SwitchState state) {
+        List<SwitchItem> switchItems = new ArrayList<>();
 
-    private static void handleSwitch(ObjectNode state, ObjectNode stateEntry, String name) {
-        ArrayNode switchArray = JSON_MAPPER.createArrayNode();
+        // Named data conditions
+        if (state.getDataConditions() != null) {
+            for (DataCondition cond : state.getDataConditions()) {
+                String caseName      = cond.getName() != null ? toIdentifier(cond.getName()) : "case";
+                String rawExpression = cond.getCondition() != null ? cond.getCondition() : "TODO";
+                String nextState     = transitionName(cond.getTransition());
 
-        // --- named conditions from dataConditions ---
-        JsonNode conditions = state.get("dataConditions");
-        if (conditions != null && conditions.isArray()) {
-            for (JsonNode condNode : conditions) {
-                String caseName      = condNode.has("name")       ? toIdentifier(condNode.get("name").asText())      : "case";
-                String rawExpression = condNode.has("condition")  ? condNode.get("condition").asText()               : "TODO";
-                String transition    = condNode.has("transition") ? condNode.get("transition").asText()              : "TODO";
-
-                ObjectNode caseBody = JSON_MAPPER.createObjectNode();
                 String strippedExpression = stripExpressionWrapper(rawExpression);
-                caseBody.put("when", strippedExpression);
-                if (isWrappedExpression(rawExpression)) {
-                    caseBody.put("_warning", "EL expression '" + strippedExpression + "' requires manual translation to jq syntax.");
-                }
-                caseBody.put("then", transition);
+                SwitchCase switchCase = new SwitchCase()
+                        .withWhen(strippedExpression)
+                        .withThen(new FlowDirective().withString(nextState));
 
-                ObjectNode caseEntry = JSON_MAPPER.createObjectNode();
-                caseEntry.set(caseName, caseBody);
-                switchArray.add(caseEntry);
+                switchItems.add(new SwitchItem(caseName, switchCase));
             }
         }
 
-        // --- default condition ---
-        JsonNode defaultCond = state.get("defaultCondition");
-        if (defaultCond != null && defaultCond.has("transition")) {
-            ObjectNode defaultBody = JSON_MAPPER.createObjectNode();
-            defaultBody.put("then", defaultCond.get("transition").asText());
-
-            ObjectNode defaultEntry = JSON_MAPPER.createObjectNode();
-            defaultEntry.set("default", defaultBody);
-            switchArray.add(defaultEntry);
+        // Default condition (no "when" predicate)
+        DefaultConditionDefinition def = state.getDefaultCondition();
+        if (def != null) {
+            String nextState = transitionName(def.getTransition());
+            SwitchCase defaultCase = new SwitchCase()
+                    .withThen(new FlowDirective().withString(nextState));
+            switchItems.add(new SwitchItem("default", defaultCase));
         }
 
-        ObjectNode switchWrapper = JSON_MAPPER.createObjectNode();
-        switchWrapper.set("switch", switchArray);
-        stateEntry.set(name, switchWrapper);
+        SwitchTask switchTask = new SwitchTask().withSwitch(switchItems);
+        return new TaskItem(name, new Task().withSwitchTask(switchTask));
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Extract the next-state name from a 0.8 transition
+     */
+    private static String transitionName(Transition t) {
+        if (t == null || t.getNextState() == null) return "TODO";
+        return t.getNextState();
     }
 
     /**
@@ -248,14 +298,6 @@ public class SpecConvert {
     }
 
     /**
-     * Returns true when the expression uses the 0.8 EL wrapper (${ ... }).
-     */
-    private static boolean isWrappedExpression(String expression) {
-        String trimmed = expression.trim();
-        return trimmed.startsWith("${") && trimmed.endsWith("}");
-    }
-
-    /**
      * Strip the 0.8 EL wrapper (${ ... }) from a condition string.
      * If the expression is not wrapped, it is returned as-is.
      * The inner content cannot be truly converted and will likely still need manual jq translation.
@@ -270,57 +312,10 @@ public class SpecConvert {
         return trimmed;
     }
 
-    /**
-     * Parse an ISO 8601 duration string (e.g. "P2DT3H4M") into total seconds,
-     * then build a 1.0 wait block:
-     * { "wait": { "seconds": 183840 } }
-     */
-    private static ObjectNode buildWait(String iso8601Duration) {
-        Pattern pattern = Pattern.compile(
-            "P(?:(\\d+)Y)?(?:(\\d+)M)?(?:(\\d+)D)?(?:T(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?)?"
-        );
-        Matcher m = pattern.matcher(iso8601Duration);
-
-        if (!m.matches()) {
-            throw new IllegalArgumentException("Invalid ISO 8601 duration: " + iso8601Duration);
-        }
-
-        long years   = m.group(1) != null ? Long.parseLong(m.group(1)) : 0;
-        long months  = m.group(2) != null ? Long.parseLong(m.group(2)) : 0;
-        long days    = m.group(3) != null ? Long.parseLong(m.group(3)) : 0;
-        long hours   = m.group(4) != null ? Long.parseLong(m.group(4)) : 0;
-        long minutes = m.group(5) != null ? Long.parseLong(m.group(5)) : 0;
-        long seconds = m.group(6) != null ? Long.parseLong(m.group(6)) : 0;
-
-        // Convert each unit type to seconds
-        years *= 365 * 86400;
-        months *= 30 * 86400;
-        days *= 86400;
-        hours *= 3600;
-        minutes *= 60;
-        long totalSeconds = years + months + days + hours + minutes + seconds;
-
-        ObjectNode waitBlock    = JSON_MAPPER.createObjectNode();
-        ObjectNode waitContents = JSON_MAPPER.createObjectNode();
-        waitContents.put("seconds", totalSeconds);
-        waitBlock.set("wait", waitContents);
-        return waitBlock;
-    }
-
-
     private static void printUsage() {
         System.out.println("Usage: java -jar spec-convert.jar <input-file> [output-file]");
         System.out.println("Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.");
     }
-
-    /**
-     * Serialise a JsonNode back to a String in either JSON or YAML.
-     */
-    public static String serialise(JsonNode node, boolean yaml) throws IOException {
-        ObjectMapper mapper = yaml ? YAML_MAPPER : JSON_MAPPER;
-        return mapper.writeValueAsString(node);
-    }
-
 
     /**
      * Returns true when the path has a .yaml or yml etension extension.

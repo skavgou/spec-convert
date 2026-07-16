@@ -6,7 +6,9 @@ SRC="$SCRIPT_DIR/src/main/java"
 OUT="$SCRIPT_DIR/out"
 LIB="$SCRIPT_DIR/lib"
 
-CP="$LIB/jackson-core-2.19.0.jar:$LIB/jackson-annotations-2.19.0.jar:$LIB/jackson-databind-2.19.0.jar:$LIB/jackson-dataformat-yaml-2.19.0.jar:$LIB/snakeyaml-2.3.jar"
+# Build classpath from every jar in lib/
+CP="$(find "$LIB" -name '*.jar' | tr '\n' ':')"
+CP="${CP%:}"  # strip trailing colon
 
 echo "Compiling..."
 mkdir -p "$OUT/classes"

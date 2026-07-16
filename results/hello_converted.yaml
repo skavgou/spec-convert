@@ -1,9 +1,10 @@
+---
 document:
-  dsl: "1.0.0"
-  namespace: "default"
-  name: "helloworld"
-  version: "1.0"
+  dsl: 1.0.0
+  namespace: default
+  name: helloworld
+  version: 1.0
 do:
 - Hello:
     set:
-      result: "Hello"
+      result: Hello
