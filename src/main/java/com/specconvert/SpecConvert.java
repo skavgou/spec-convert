@@ -1,6 +1,7 @@
 package com.specconvert;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import io.serverlessworkflow.api.states.InjectState;
 import io.serverlessworkflow.api.states.SleepState;
 import io.serverlessworkflow.api.states.SwitchState;
 import io.serverlessworkflow.api.switchconditions.DataCondition;
+import io.serverlessworkflow.api.switchconditions.EventCondition;
 import io.serverlessworkflow.api.defaultdef.DefaultConditionDefinition;
 import io.serverlessworkflow.api.interfaces.State;
 import io.serverlessworkflow.api.transitions.Transition;
@@ -94,9 +96,13 @@ public class SpecConvert {
      */
     public static io.serverlessworkflow.api.Workflow read(Path path) throws IOException {
         if (isYaml(path)) {
-            return new YamlObjectMapper().readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
+            YamlObjectMapper mapper = new YamlObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
         } else {
-            return new JsonObjectMapper().readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
+            JsonObjectMapper mapper = new JsonObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
         }
     }
 
@@ -236,7 +242,21 @@ public class SpecConvert {
     private static TaskItem handleSwitch(String name, SwitchState state) {
         List<SwitchItem> switchItems = new ArrayList<>();
 
-        // Named data conditions
+        // Event-based conditions (eventConditions) — map eventRef as name, transition as then
+        if (state.getEventConditions() != null) {
+            for (EventCondition cond : state.getEventConditions()) {
+                String caseName  = cond.getEventRef() != null ? toIdentifier(cond.getEventRef()) : "case";
+                String nextState = transitionName(cond.getTransition());
+
+                SwitchCase switchCase = new SwitchCase()
+                        .withWhen(".received | .type == \"" + cond.getEventRef() + "\"")
+                        .withThen(new FlowDirective().withString(nextState));
+
+                switchItems.add(new SwitchItem(caseName, switchCase));
+            }
+        }
+
+        // Data-based conditions (dataConditions)
         if (state.getDataConditions() != null) {
             for (DataCondition cond : state.getDataConditions()) {
                 String caseName      = cond.getName() != null ? toIdentifier(cond.getName()) : "case";

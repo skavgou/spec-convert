@@ -9,3 +9,17 @@ states:
   type: inject
   data:
     result: Hello
+- name: SleepFiveSeconds
+  type: sleep
+  duration: PT5S
+  transition: GetJobStatus
+- name: CheckVisaStatus
+  type: switch
+  eventConditions:
+  - eventRef: visaApprovedEvent
+    transition: HandleApprovedVisa
+  - eventRef: visaRejectedEvent
+    transition: HandleRejectedVisa
+  eventTimeout: PT1H
+  defaultCondition:
+    transition: HandleNoVisaDecision

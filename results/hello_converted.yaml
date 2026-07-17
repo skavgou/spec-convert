@@ -8,3 +8,16 @@ do:
 - Hello:
     set:
       result: Hello
+- SleepFiveSeconds:
+    wait:
+      seconds: 5
+- CheckVisaStatus:
+    switch:
+    - visaapprovedevent:
+        when: .received | .type == "visaApprovedEvent"
+        then: HandleApprovedVisa
+    - visarejectedevent:
+        when: .received | .type == "visaRejectedEvent"
+        then: HandleRejectedVisa
+    - default:
+        then: HandleNoVisaDecision
