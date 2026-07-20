@@ -2,14 +2,31 @@
 
 CNCF Serverless Workflow **0.8 → 1.0** converter.
 
-A plain-Java command-line tool — no build tool or application framework required. Just a JDK and the bundled Jackson JARs in `lib/`.
+A plain-Java command-line tool built with Maven.
 
 ---
 
 ## Requirements
 
 - Java 17+
-- The `lib/` JARs are already included (Jackson 2.19.0 + SnakeYAML 2.3)
+- Maven 3.8+
+
+---
+
+## First-time setup
+
+The 0.8 SDK is distributed as a locally-shaded jar and is not available on Maven Central. Install it into your local Maven repository once before building:
+
+```bash
+mvn install:install-file \
+  -Dfile=lib/serverlessworkflow-api-v08-4.1.0.Final.jar \
+  -DgroupId=io.serverlessworkflow.v08 \
+  -DartifactId=serverlessworkflow-api \
+  -Dversion=4.1.0.Final \
+  -Dpackaging=jar
+```
+
+All other dependencies are pulled automatically from Maven Central on the first build.
 
 ---
 
@@ -19,7 +36,13 @@ A plain-Java command-line tool — no build tool or application framework requir
 ./build.sh
 ```
 
-Compiles the source and produces `out/spec-convert.jar`.
+Or directly with Maven:
+
+```bash
+mvn package
+```
+
+Produces `target/spec-convert.jar` — a self-contained fat jar with all dependencies included.
 
 ---
 
@@ -27,6 +50,12 @@ Compiles the source and produces `out/spec-convert.jar`.
 
 ```bash
 ./run.sh <input-file> [output-file]
+```
+
+Or directly with Java:
+
+```bash
+java -jar target/spec-convert.jar <input-file> [output-file]
 ```
 
 - Both JSON (`.json`) and YAML (`.yaml` / `.yml`) inputs are supported.
@@ -45,16 +74,10 @@ Compiles the source and produces `out/spec-convert.jar`.
 
 ---
 
-## Manual compile / run (without the scripts)
+## Clean
 
 ```bash
-CP="lib/jackson-core-2.19.0.jar:lib/jackson-annotations-2.19.0.jar:lib/jackson-databind-2.19.0.jar:lib/jackson-dataformat-yaml-2.19.0.jar:lib/snakeyaml-2.3.jar"
-
-# Compile
-javac -cp "$CP" -d out src/main/java/com/specconvert/SpecConvert.java
-
-# Run
-java -cp "out:$CP" com.specconvert.SpecConvert samples/hello.json
+mvn clean
 ```
 
 ---
