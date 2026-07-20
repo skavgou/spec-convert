@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR="$SCRIPT_DIR/out/spec-convert.jar"
+JAR="$SCRIPT_DIR/target/spec-convert.jar"
 
 if [[ ! -f "$JAR" ]]; then
   echo "Error: $JAR not found. Run ./build.sh first." >&2

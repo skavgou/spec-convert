@@ -1,2 +1,4 @@
-pom.xml
-.vscode
+target/
+out/
+lib/
+.vscode/
