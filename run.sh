@@ -1,4 +1,4 @@
-# Runs SpecConvert. Build first with: ./build.sh
+# Runs SpecConvert. Build first with ./build.sh
 # Usage: ./run.sh <input-file> [output-file]
 set -euo pipefail
 

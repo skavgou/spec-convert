@@ -13,23 +13,6 @@ A plain-Java command-line tool built with Maven.
 
 ---
 
-## First-time setup
-
-The 0.8 SDK is distributed as a locally-shaded jar and is not available on Maven Central. Install it into your local Maven repository once before building:
-
-```bash
-mvn install:install-file \
-  -Dfile=lib/serverlessworkflow-api-v08-4.1.0.Final.jar \
-  -DgroupId=io.serverlessworkflow.v08 \
-  -DartifactId=serverlessworkflow-api \
-  -Dversion=4.1.0.Final \
-  -Dpackaging=jar
-```
-
-All other dependencies are pulled automatically from Maven Central on the first build.
-
----
-
 ## Build
 
 ```bash
