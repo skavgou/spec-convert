@@ -2,6 +2,8 @@ package com.specconvert;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -10,9 +12,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 // 0.8
+import io.serverlessworkflow.api.actions.Action;
+import io.serverlessworkflow.api.branches.Branch;
 import io.serverlessworkflow.api.mapper.JsonObjectMapper;
 import io.serverlessworkflow.api.mapper.YamlObjectMapper;
 import io.serverlessworkflow.api.states.InjectState;
+import io.serverlessworkflow.api.states.ParallelState;
 import io.serverlessworkflow.api.states.SleepState;
 import io.serverlessworkflow.api.states.SwitchState;
 import io.serverlessworkflow.api.switchconditions.DataCondition;
@@ -22,9 +27,14 @@ import io.serverlessworkflow.api.interfaces.State;
 import io.serverlessworkflow.api.transitions.Transition;
 
 // 1.0
+import io.serverlessworkflow.api.types.CallFunction;
+import io.serverlessworkflow.api.types.CallTask;
 import io.serverlessworkflow.api.types.Document;
 import io.serverlessworkflow.api.types.DurationInline;
 import io.serverlessworkflow.api.types.FlowDirective;
+import io.serverlessworkflow.api.types.ForkTask;
+import io.serverlessworkflow.api.types.ForkTaskConfiguration;
+import io.serverlessworkflow.api.types.FunctionArguments;
 import io.serverlessworkflow.api.types.Set;
 import io.serverlessworkflow.api.types.SetTask;
 import io.serverlessworkflow.api.types.SetTaskConfiguration;
@@ -95,15 +105,9 @@ public class SpecConvert {
      * Parse a JSON or YAML file into a 0.8 workflow instance.
      */
     public static io.serverlessworkflow.api.Workflow read(Path path) throws IOException {
-        if (isYaml(path)) {
-            YamlObjectMapper mapper = new YamlObjectMapper();
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            return mapper.readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
-        } else {
-            JsonObjectMapper mapper = new JsonObjectMapper();
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            return mapper.readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
-        }
+        ObjectMapper mapper = isYaml(path) ? new YamlObjectMapper() : new JsonObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper.readValue(path.toFile(), io.serverlessworkflow.api.Workflow.class);
     }
 
     /**
@@ -177,6 +181,9 @@ public class SpecConvert {
 
             } else if (state instanceof SwitchState) {
                 items.add(handleSwitch(stateName, (SwitchState) state));
+
+            } else if (state instanceof ParallelState) {
+                items.add(handleFork(stateName, (ParallelState) state));
 
             } else {
                 System.err.println("[WARN] Unsupported state type for state '"
@@ -283,6 +290,80 @@ public class SpecConvert {
 
         SwitchTask switchTask = new SwitchTask().withSwitch(switchItems);
         return new TaskItem(name, new Task().withSwitchTask(switchTask));
+    }
+
+    /**
+     * Convert a 0.8 parallel state to a 1.0 fork task.
+     *
+     * completionType mapping:
+     *   allOf   → compete: false  (all branches must finish)
+     *   atLeast → compete: true   (first N to complete wins; 1.0 models this as compete)
+     */
+    private static TaskItem handleFork(String name, ParallelState state) {
+        // compete: true when only a subset needs to complete (atLeast)
+        boolean compete = state.getCompletionType() == ParallelState.CompletionType.AT_LEAST;
+
+        List<TaskItem> branchItems = new ArrayList<>();
+
+        if (state.getBranches() != null) {
+            for (Branch branch : state.getBranches()) {
+                String branchName = branch.getName() != null ? branch.getName() : "branch";
+                List<TaskItem> actionItems = new ArrayList<>();
+
+                if (branch.getActions() != null) {
+                    for (Action action : branch.getActions()) {
+                        actionItems.add(convertAction(action));
+                    }
+                }
+
+                // Each branch becomes a TaskItem whose value is a DoTask containing its actions
+                io.serverlessworkflow.api.types.DoTask doTask =
+                        new io.serverlessworkflow.api.types.DoTask()
+                                .withDo(actionItems);
+                branchItems.add(new TaskItem(branchName, new Task().withDoTask(doTask)));
+            }
+        }
+
+        ForkTaskConfiguration forkCfg = new ForkTaskConfiguration()
+                .withCompete(compete)
+                .withBranches(branchItems);
+
+        ForkTask forkTask = new ForkTask().withFork(forkCfg);
+        return new TaskItem(name, new Task().withForkTask(forkTask));
+    }
+
+    /**
+     * Convert a single 0.8 action to a 1.0 TaskItem.
+     *
+     * A functionRef action becomes a CallFunction task keyed by the function's refName.
+     * Arguments (JsonNode object) are copied as additional properties on FunctionArguments.
+     */
+    private static TaskItem convertAction(Action action) {
+        if (action.getFunctionRef() != null) {
+            String refName = action.getFunctionRef().getRefName() != null
+                    ? action.getFunctionRef().getRefName() : "function";
+
+            FunctionArguments args = new FunctionArguments();
+            JsonNode arguments = action.getFunctionRef().getArguments();
+            if (arguments != null && arguments.isObject()) {
+                arguments.fields().forEachRemaining(e -> args.setAdditionalProperty(e.getKey(), e.getValue()));
+            }
+
+            CallFunction callFn = new CallFunction()
+                    .withCall(refName)
+                    .withWith(args);
+
+            String taskName = action.getName() != null ? action.getName() : refName;
+            return new TaskItem(taskName, new Task().withCallTask(new CallTask().withCallFunction(callFn)));
+        }
+
+        // Fallback: unsupported action type — emit a set task with a warning marker
+        System.err.println("[WARN] Action has no functionRef; emitting placeholder set task.");
+        SetTaskConfiguration cfg = new SetTaskConfiguration();
+        cfg.setAdditionalProperty("_warning", "unsupported action type");
+        SetTask setTask = new SetTask().withSet(new Set().withSetTaskConfiguration(cfg));
+        String taskName = action.getName() != null ? action.getName() : "unsupportedAction";
+        return new TaskItem(taskName, new Task().withSetTask(setTask));
     }
 
     // -----------------------------------------------------------------------

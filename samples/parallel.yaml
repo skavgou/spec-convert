@@ -1,0 +1,24 @@
+id: parallelexec
+version: "1.0"
+specVersion: "0.8"
+name: Parallel Exec Workflow
+description: Execute branches in parallel
+start: ParallelExec
+states:
+  - name: ParallelExec
+    type: parallel
+    completionType: allOf
+    branches:
+      - name: Branch1
+        actions:
+          - functionRef:
+              refName: functionNameOne
+              arguments:
+                order: "${ .someParam }"
+      - name: Branch2
+        actions:
+          - functionRef:
+              refName: functionNameTwo
+              arguments:
+                order: "${ .someParam }"
+    end: true

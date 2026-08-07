@@ -1,0 +1,38 @@
+{
+  "document" : {
+    "dsl" : "1.0.0",
+    "namespace" : "default",
+    "name" : "parallelexec",
+    "version" : "1.0"
+  },
+  "do" : [ {
+    "ParallelExec" : {
+      "fork" : {
+        "branches" : [ {
+          "Branch1" : {
+            "do" : [ {
+              "functionNameOne" : {
+                "call" : "functionNameOne",
+                "with" : {
+                  "order" : "${ .someParam }"
+                }
+              }
+            } ]
+          }
+        }, {
+          "Branch2" : {
+            "do" : [ {
+              "functionNameTwo" : {
+                "call" : "functionNameTwo",
+                "with" : {
+                  "order" : "${ .someParam }"
+                }
+              }
+            } ]
+          }
+        } ],
+        "compete" : false
+      }
+    }
+  } ]
+}
