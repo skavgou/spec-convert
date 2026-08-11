@@ -1,0 +1,51 @@
+---
+document:
+  dsl: 1.0.0
+  namespace: default
+  name: monitorvitals
+  version: 1.0
+do:
+- MonitorVitals:
+    listen:
+      to:
+        any:
+        - with:
+            type: com.hospital.vitals.temperature.high
+        - with:
+            type: com.hospital.vitals.bloodpressure.high
+        - with:
+            type: com.hospital.vitals.respiration.high
+      read: data
+    foreach:
+      item: item
+      at: index
+      do:
+      - routeByEventType:
+          switch:
+          - temperatureHigh:
+              when: "${ .item.type == \"com.hospital.vitals.temperature.high\" }"
+              then: temperatureHigh
+          - bloodpressureHigh:
+              when: "${ .item.type == \"com.hospital.vitals.bloodpressure.high\" }"
+              then: bloodpressureHigh
+          - respirationHigh:
+              when: "${ .item.type == \"com.hospital.vitals.respiration.high\" }"
+              then: respirationHigh
+      - temperatureHigh:
+          do:
+          - sendTylenolOrder:
+              call: sendTylenolOrder
+              with:
+                patientid: "${ .patientId }"
+      - bloodpressureHigh:
+          do:
+          - callNurse:
+              call: callNurse
+              with:
+                patientid: "${ .patientId }"
+      - respirationHigh:
+          do:
+          - callPulmonologist:
+              call: callPulmonologist
+              with:
+                patientid: "${ .patientId }"

@@ -14,8 +14,11 @@ import java.util.regex.Pattern;
 // 0.8
 import io.serverlessworkflow.api.actions.Action;
 import io.serverlessworkflow.api.branches.Branch;
+import io.serverlessworkflow.api.events.EventDefinition;
+import io.serverlessworkflow.api.events.OnEvents;
 import io.serverlessworkflow.api.mapper.JsonObjectMapper;
 import io.serverlessworkflow.api.mapper.YamlObjectMapper;
+import io.serverlessworkflow.api.states.EventState;
 import io.serverlessworkflow.api.states.InjectState;
 import io.serverlessworkflow.api.states.ParallelState;
 import io.serverlessworkflow.api.states.SleepState;
@@ -27,14 +30,23 @@ import io.serverlessworkflow.api.interfaces.State;
 import io.serverlessworkflow.api.transitions.Transition;
 
 // 1.0
+import io.serverlessworkflow.api.types.AllEventConsumptionStrategy;
+import io.serverlessworkflow.api.types.AnyEventConsumptionStrategy;
 import io.serverlessworkflow.api.types.CallFunction;
 import io.serverlessworkflow.api.types.CallTask;
 import io.serverlessworkflow.api.types.Document;
 import io.serverlessworkflow.api.types.DurationInline;
+import io.serverlessworkflow.api.types.EventData;
+import io.serverlessworkflow.api.types.EventFilter;
+import io.serverlessworkflow.api.types.EventProperties;
 import io.serverlessworkflow.api.types.FlowDirective;
 import io.serverlessworkflow.api.types.ForkTask;
 import io.serverlessworkflow.api.types.ForkTaskConfiguration;
 import io.serverlessworkflow.api.types.FunctionArguments;
+import io.serverlessworkflow.api.types.ListenTask;
+import io.serverlessworkflow.api.types.ListenTaskConfiguration;
+import io.serverlessworkflow.api.types.ListenTo;
+import io.serverlessworkflow.api.types.SubscriptionIterator;
 import io.serverlessworkflow.api.types.Set;
 import io.serverlessworkflow.api.types.SetTask;
 import io.serverlessworkflow.api.types.SetTaskConfiguration;
@@ -47,6 +59,8 @@ import io.serverlessworkflow.api.types.TimeoutAfter;
 import io.serverlessworkflow.api.types.WaitTask;
 import io.serverlessworkflow.api.WorkflowFormat;
 import io.serverlessworkflow.api.WorkflowWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 // Workflow10 = io.serverlessworkflow.api.types.Workflow  (1.0 output)
 // Workflow08 = io.serverlessworkflow.api.Workflow        (0.8 input, referenced by FQN)
@@ -157,9 +171,11 @@ public class SpecConvert {
      * Each state becomes a TaskItem keyed by the state's name.
      *
      * Handled mappings:
-     *   inject  - set    (state data → set variables)
-     *   sleep   - wait   (ISO 8601 duration → DurationInline)
-     *   switch  - switch (dataConditions + defaultCondition)
+     *   inject   - set    (state data → set variables)
+     *   sleep    - wait   (ISO 8601 duration → DurationInline)
+     *   switch   - switch (dataConditions + defaultCondition)
+     *   parallel - fork   (branches + completionType)
+     *   event    - listen (onEvents + exclusive flag)
      */
     private static List<TaskItem> buildDo(io.serverlessworkflow.api.Workflow src) {
         List<TaskItem> items = new ArrayList<>();
@@ -167,6 +183,9 @@ public class SpecConvert {
         if (src.getStates() == null) {
             return items;
         }
+
+        // Build a name→type lookup from the workflow's top-level event definitions
+        Map<String, String> eventTypeByName = buildEventTypeMap(src);
 
         for (State state : src.getStates()) {
             String stateName = state.getName() != null ? state.getName() : "unnamed";
@@ -184,6 +203,9 @@ public class SpecConvert {
 
             } else if (state instanceof ParallelState) {
                 items.add(handleFork(stateName, (ParallelState) state));
+
+            } else if (state instanceof EventState) {
+                items.add(handleListen(stateName, (EventState) state, eventTypeByName));
 
             } else {
                 System.err.println("[WARN] Unsupported state type for state '"
@@ -293,6 +315,183 @@ public class SpecConvert {
     }
 
     /**
+     * Build a map of event-definition name → CloudEvent type string
+     * from the workflow's top-level events block.
+     * Used by handleListen() to resolve eventRef names to CloudEvent types.
+     */
+    private static Map<String, String> buildEventTypeMap(io.serverlessworkflow.api.Workflow src) {
+        Map<String, String> map = new HashMap<>();
+        if (src.getEvents() == null || src.getEvents().getEventDefs() == null) {
+            return map;
+        }
+        for (EventDefinition def : src.getEvents().getEventDefs()) {
+            if (def.getName() != null) {
+                // Use the declared CloudEvent type if present, otherwise fall back to the name
+                String type = def.getType() != null ? def.getType() : def.getName();
+                map.put(def.getName(), type);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Convert a 0.8 event state to a 1.0 listen task.
+     *
+     * exclusive mapping:
+     *   true  (default) → any:  (first matching event triggers the state)
+     *   false           → all:  (all listed events must arrive)
+     *
+     * Each OnEvents entry contributes one EventFilter per eventRef it lists.
+     * The CloudEvent type is resolved from the workflow's top-level event definitions;
+     * if no definition is found the eventRef name itself is used as the type.
+     *
+     * Actions mapping via foreach:
+     *   1.0 ListenTask carries a `foreach` (SubscriptionIterator) whose `do` list
+     *   executes for every consumed event. The iterator variable "${ .item }" holds
+     *   the received CloudEvent, so actions can inspect it.
+     *
+     *   - Uniform actions (all onEvents share the same actions): the actions are placed
+     *     directly in foreach.do.
+     *   - Mixed actions (different onEvents entries have different actions): a switch task
+     *     is generated inside foreach.do that dispatches on "${ .item.type }" to reach the
+     *     correct call task for each event type.
+     *   - No actions on any onEvents: foreach is omitted entirely.
+     */
+    private static TaskItem handleListen(
+            String name,
+            EventState state,
+            Map<String, String> eventTypeByName) {
+
+        List<EventFilter> filters = new ArrayList<>();
+
+        // Collect per-eventRef action lists, keyed by resolved CloudEvent type
+        // LinkedHashMap preserves insertion order for deterministic output
+        java.util.LinkedHashMap<String, List<Action>> actionsByType = new java.util.LinkedHashMap<>();
+
+        if (state.getOnEvents() != null) {
+            for (OnEvents onEvent : state.getOnEvents()) {
+                List<Action> actions = onEvent.getActions() != null
+                        ? onEvent.getActions() : java.util.Collections.emptyList();
+
+                if (onEvent.getEventRefs() != null) {
+                    for (String eventRef : onEvent.getEventRefs()) {
+                        String cloudEventType = eventTypeByName.getOrDefault(eventRef, eventRef);
+                        EventProperties props = new EventProperties().withType(cloudEventType);
+                        filters.add(new EventFilter().withWith(props));
+                        actionsByType.put(cloudEventType, actions);
+                    }
+                }
+            }
+        }
+
+        // exclusive=true → any (first matching event wins); exclusive=false → all (must all arrive)
+        ListenTo listenTo;
+        if (state.isExclusive()) {
+            listenTo = new ListenTo()
+                    .withAnyEventConsumptionStrategy(new AnyEventConsumptionStrategy().withAny(filters));
+        } else {
+            listenTo = new ListenTo()
+                    .withAllEventConsumptionStrategy(new AllEventConsumptionStrategy().withAll(filters));
+        }
+
+        ListenTask listenTask = new ListenTask()
+                .withListen(new ListenTaskConfiguration().withTo(listenTo));
+
+        // Build the foreach iterator only when at least one onEvents entry has actions
+        boolean anyActions = actionsByType.values().stream().anyMatch(a -> !a.isEmpty());
+        if (anyActions) {
+            List<TaskItem> foreachDo = buildForeachDo(name, actionsByType);
+            // item = the variable name that holds each received CloudEvent inside foreach.do
+            listenTask.withForeach(new SubscriptionIterator()
+                    .withItem("item")
+                    .withDo(foreachDo));
+        }
+
+        return new TaskItem(name, new Task().withListenTask(listenTask));
+    }
+
+    /**
+     * Build the task list for the listen task's foreach iterator.
+     *
+     * When all event types share identical action lists the tasks are emitted directly.
+     * When different event types have different action lists a switch task is emitted
+     * that dispatches on "${ .item.type }" so only the matching branch executes.
+     *
+     * The iterator variable is named "item" (set in handleListen).
+     */
+    private static List<TaskItem> buildForeachDo(
+            String stateName,
+            java.util.LinkedHashMap<String, List<Action>> actionsByType) {
+
+        // Check whether every event type maps to the same action list
+        List<List<Action>> allActionLists = new ArrayList<>(actionsByType.values());
+        boolean uniform = allActionLists.stream()
+                .allMatch(a -> actionListEquals(a, allActionLists.get(0)));
+
+        if (uniform) {
+            // All event types share the same actions — emit them directly
+            List<TaskItem> items = new ArrayList<>();
+            for (Action action : allActionLists.get(0)) {
+                items.add(convertAction(action));
+            }
+            return items;
+        }
+
+        // Mixed actions — emit:
+        //   1. a switch on ${ .item.type } whose each case jumps to a named do-task
+        //   2. one named do-task per event type containing that type's actions
+        // The switch + all named do-tasks sit together in foreach.do.
+        List<TaskItem> foreachItems = new ArrayList<>();
+        List<SwitchItem> switchItems = new ArrayList<>();
+
+        for (Map.Entry<String, List<Action>> entry : actionsByType.entrySet()) {
+            String cloudEventType = entry.getKey();
+            List<Action> actions = entry.getValue();
+
+            if (actions.isEmpty()) continue;
+
+            // Derive a stable task name from the last two URI segments to avoid collisions
+            // e.g. "com.hospital.vitals.temperature.high" → "temperatureHigh"
+            String doTaskName = toIdentifier(lastTwoSegments(cloudEventType));
+
+            // switch case: when this event type matches, jump to the named do-task
+            SwitchCase switchCase = new SwitchCase()
+                    .withWhen("${ .item.type == \"" + cloudEventType + "\" }")
+                    .withThen(new FlowDirective().withString(doTaskName));
+            switchItems.add(new SwitchItem(doTaskName, switchCase));
+
+            // named do-task containing the converted actions for this event type
+            List<TaskItem> actionTaskItems = new ArrayList<>();
+            for (Action action : actions) {
+                actionTaskItems.add(convertAction(action));
+            }
+            io.serverlessworkflow.api.types.DoTask doTask =
+                    new io.serverlessworkflow.api.types.DoTask().withDo(actionTaskItems);
+            foreachItems.add(new TaskItem(doTaskName, new Task().withDoTask(doTask)));
+        }
+
+        SwitchTask switchTask = new SwitchTask().withSwitch(switchItems);
+        // Prepend the switch; named do-tasks follow so the switch can reference them by name
+        foreachItems.add(0, new TaskItem("routeByEventType", new Task().withSwitchTask(switchTask)));
+        return foreachItems;
+    }
+
+    /**
+     * Shallow structural equality check for two action lists:
+     * considers them equal when they have the same size and the same functionRef refNames
+     * in the same order. Used to decide uniform vs mixed foreach dispatch.
+     */
+    private static boolean actionListEquals(List<Action> a, List<Action> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            String ra = a.get(i).getFunctionRef() != null ? a.get(i).getFunctionRef().getRefName() : null;
+            String rb = b.get(i).getFunctionRef() != null ? b.get(i).getFunctionRef().getRefName() : null;
+            if (!java.util.Objects.equals(ra, rb)) return false;
+        }
+        return true;
+    }
+
+    /**
      * Convert a 0.8 parallel state to a 1.0 fork task.
      *
      * completionType mapping:
@@ -396,6 +595,20 @@ public class SpecConvert {
             }
         }
         return sb.isEmpty() ? "case" : sb.toString();
+    }
+
+    /**
+     * Return the last two dot-separated segments of a URI-style string as a space-separated pair,
+     * suitable for passing to toIdentifier() to produce a unique camelCase name.
+     * e.g. "com.hospital.vitals.temperature.high" → "temperature high"
+     * e.g. "highTemperature" (no dots)            → "highTemperature"
+     */
+    private static String lastTwoSegments(String type) {
+        int last = type.lastIndexOf('.');
+        if (last < 0) return type;
+        int secondLast = type.lastIndexOf('.', last - 1);
+        return (secondLast < 0 ? type.substring(0, last) : type.substring(secondLast + 1, last))
+                + " " + type.substring(last + 1);
     }
 
     /**

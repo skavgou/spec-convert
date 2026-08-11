@@ -1,0 +1,76 @@
+{
+  "id": "monitorvitals",
+  "version": "1.0",
+  "specVersion": "0.8",
+  "name": "Monitor Vitals Workflow",
+  "description": "Monitor patient vitals and react to threshold events",
+  "start": "MonitorVitals",
+  "events": [
+    {
+      "name": "HighBodyTemperature",
+      "type": "com.hospital.vitals.temperature.high",
+      "kind": "consumed"
+    },
+    {
+      "name": "HighBloodPressure",
+      "type": "com.hospital.vitals.bloodpressure.high",
+      "kind": "consumed"
+    },
+    {
+      "name": "HighRespirationRate",
+      "type": "com.hospital.vitals.respiration.high",
+      "kind": "consumed"
+    }
+  ],
+  "states": [
+    {
+      "name": "MonitorVitals",
+      "type": "event",
+      "exclusive": true,
+      "onEvents": [
+        {
+          "eventRefs": ["HighBodyTemperature"],
+          "actions": [
+            {
+              "functionRef": {
+                "refName": "sendTylenolOrder",
+                "arguments": {
+                  "patientid": "${ .patientId }"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "eventRefs": ["HighBloodPressure"],
+          "actions": [
+            {
+              "functionRef": {
+                "refName": "callNurse",
+                "arguments": {
+                  "patientid": "${ .patientId }"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "eventRefs": ["HighRespirationRate"],
+          "actions": [
+            {
+              "functionRef": {
+                "refName": "callPulmonologist",
+                "arguments": {
+                  "patientid": "${ .patientId }"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "end": {
+        "terminate": true
+      }
+    }
+  ]
+}
