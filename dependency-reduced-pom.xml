@@ -27,7 +27,7 @@
               <finalName>spec-convert</finalName>
               <transformers>
                 <transformer>
-                  <mainClass>com.specconvert.SpecConvert</mainClass>
+                  <mainClass>com.specconvert.transformer.SpecConvert</mainClass>
                 </transformer>
                 <transformer />
               </transformers>

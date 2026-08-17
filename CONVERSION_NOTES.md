@@ -64,6 +64,8 @@ The 0.8 `states` array becomes a 1.0 `do` array. Each state becomes a single-key
 | `"inject"`     | `{ set: { ...data } }`      | The state's `data` object is copied directly into a `set` wrapper.                                        |
 | `"sleep"`      | `{ wait: { seconds: N } }`  | The `duration` ISO 8601 string (e.g. `PT5S`) is parsed into total seconds. Defaults to `PT0S` if absent. |
 | `"switch"`     | `{ switch: [ ... ] }`       | Each `dataConditions` entry becomes a named case. EL expressions (`${ ... }`) are stripped and flagged, may need to be manually handled. Not complete. |
+| `"operation"`  | `{ do: [ ... ] }` or `{ fork: { ... } }` | `sequential` (default) → a `do` task containing one call task per action. `parallel` → a `fork` task with one branch per action. |
+
 ---
 
 ## State Conversion Examples
@@ -137,6 +139,81 @@ The 0.8 `states` array becomes a 1.0 `do` array. Each state becomes a single-key
 ```
 
 Condition names are **camelCased** for use as YAML keys (e.g. `"Applicant is adult"` → `applicantIsAdult`).
+
+---
+
+### `operation` → `do` (sequential) or `fork` (parallel)
+
+**Sequential — one call task per action, executed in order:**
+
+```json
+// 0.8
+{
+  "name": "RejectApplication",
+  "type": "operation",
+  "actionMode": "sequential",
+  "actions": [
+    {
+      "functionRef": {
+        "refName": "sendRejectionEmailFunction",
+        "arguments": { "customer": "${ .customer }" }
+      }
+    }
+  ],
+  "end": true
+}
+
+// 1.0
+{
+  "RejectApplication": {
+    "do": [
+      {
+        "sendRejectionEmailFunction": {
+          "call": "sendRejectionEmailFunction",
+          "with": { "customer": "${ .customer }" }
+        }
+      }
+    ]
+  }
+}
+```
+
+**Parallel — each action becomes its own branch inside a `fork` task:**
+
+```json
+// 0.8
+{
+  "name": "NotifyParallel",
+  "type": "operation",
+  "actionMode": "parallel",
+  "actions": [
+    { "functionRef": { "refName": "sendEmailNotificationFunction", "arguments": { "customer": "${ .customer }" } } },
+    { "functionRef": { "refName": "sendSMSNotificationFunction",  "arguments": { "customer": "${ .customer }" } } }
+  ],
+  "end": true
+}
+
+// 1.0
+{
+  "NotifyParallel": {
+    "fork": {
+      "compete": false,
+      "branches": [
+        {
+          "sendEmailNotificationFunction": {
+            "do": [ { "sendEmailNotificationFunction": { "call": "sendEmailNotificationFunction", "with": { "customer": "${ .customer }" } } } ]
+          }
+        },
+        {
+          "sendSMSNotificationFunction": {
+            "do": [ { "sendSMSNotificationFunction": { "call": "sendSMSNotificationFunction", "with": { "customer": "${ .customer }" } } } ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
 ---
 
