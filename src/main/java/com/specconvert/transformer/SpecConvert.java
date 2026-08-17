@@ -166,9 +166,7 @@ public class SpecConvert {
                 items.add(Inject.handleInject(stateName, (InjectState) state));
 
             } else if (state instanceof SleepState) {
-                String duration = ((SleepState) state).getDuration();
-                if (duration == null) duration = "PT0S";
-                items.add(new TaskItem(stateName, new Task().withWaitTask(Sleep.handleWait(duration))));
+                items.add(new TaskItem(stateName, new Task().withWaitTask(Sleep.handleWait((SleepState) state))));
 
             } else if (state instanceof SwitchState) {
                 items.add(Switch.handleSwitch(stateName, (SwitchState) state));
