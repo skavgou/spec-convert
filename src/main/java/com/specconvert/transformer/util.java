@@ -3,10 +3,12 @@ package com.specconvert.transformer;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 // 0.8
 import io.serverlessworkflow.api.actions.Action;
+import io.serverlessworkflow.api.events.EventDefinition;
 import io.serverlessworkflow.api.transitions.Transition;
 
 // 1.0
@@ -209,6 +211,26 @@ public class util {
             if (!java.util.Objects.equals(ra, rb)) return false;
         }
         return true;
+    }
+
+    /**
+     * Build a map of event-definition name → CloudEvent type string
+     * from the workflow's top-level events block.
+     * Used by handleListen() to resolve eventRef names to CloudEvent types.
+     */
+    protected static Map<String, String> buildEventTypeMap(io.serverlessworkflow.api.Workflow src) {
+        Map<String, String> map = new HashMap<>();
+        if (src.getEvents() == null || src.getEvents().getEventDefs() == null) {
+            return map;
+        }
+        for (EventDefinition def : src.getEvents().getEventDefs()) {
+            if (def.getName() != null) {
+                // Use the declared CloudEvent type if present, otherwise fall back to the name
+                String type = def.getType() != null ? def.getType() : def.getName();
+                map.put(def.getName(), type);
+            }
+        }
+        return map;
     }
 
 }

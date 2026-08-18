@@ -157,7 +157,7 @@ public class SpecConvert {
         }
 
         // Build a name→type lookup from the workflow's top-level event definitions
-        Map<String, String> eventTypeByName = buildEventTypeMap(src);
+        Map<String, String> eventTypeByName = util.buildEventTypeMap(src);
 
         for (State state : src.getStates()) {
             String stateName = state.getName() != null ? state.getName() : "unnamed";
@@ -175,7 +175,7 @@ public class SpecConvert {
                 items.add(Fork.handleFork(stateName, (ParallelState) state));
 
             } else if (state instanceof OperationState) {
-                items.add(handleOperation(stateName, (OperationState) state));
+                items.add(Operation.handleOperation(stateName, (OperationState) state));
 
             } else if (state instanceof EventState) {
                 items.add(Listen.handleListen(stateName, (EventState) state, eventTypeByName));
@@ -188,74 +188,5 @@ public class SpecConvert {
 
         return items;
     }
-
-    /**
-     * Convert a 0.8 operation state to one or more 1.0 tasks.
-     *
-     * actionMode mapping:
-     *   sequential (default) → each action becomes an individual call task wrapped in
-     *                          a do task keyed by the state name, preserving execution order.
-     *   parallel             → actions are placed as branches inside a fork task keyed by
-     *                          the state name (compete: false — all branches must finish).
-     *
-     * Each action's functionRef becomes a call task:
-     *   { "<refName>": { call: "<refName>", with: { <arguments> } } }
-     */
-    private static TaskItem handleOperation(String name, OperationState state) {
-        List<Action> actions = state.getActions() != null ? state.getActions() : java.util.Collections.emptyList();
-
-        boolean parallel = state.getActionMode() == OperationState.ActionMode.PARALLEL;
-        System.err.println("[INFO] Converting operation state '" + name + "' (actionMode="
-                + (parallel ? "parallel" : "sequential") + ", actions=" + actions.size() + ")");
-
-        if (parallel) {
-            // parallel → fork task; each action becomes its own branch
-            List<TaskItem> branchItems = new ArrayList<>();
-            for (Action action : actions) {
-                TaskItem actionItem = util.convertAction(action);
-                io.serverlessworkflow.api.types.DoTask doTask =
-                        new io.serverlessworkflow.api.types.DoTask()
-                                .withDo(java.util.Collections.singletonList(actionItem));
-                String branchName = actionItem.getName() != null ? actionItem.getName() : "branch";
-                branchItems.add(new TaskItem(branchName, new Task().withDoTask(doTask)));
-            }
-            ForkTaskConfiguration forkCfg = new ForkTaskConfiguration()
-                    .withCompete(false)
-                    .withBranches(branchItems);
-            return new TaskItem(name, new Task().withForkTask(new ForkTask().withFork(forkCfg)));
-        }
-
-        // sequential → do task containing each action as a call task in order
-        List<TaskItem> actionItems = new ArrayList<>();
-        for (Action action : actions) {
-            actionItems.add(util.convertAction(action));
-        }
-        io.serverlessworkflow.api.types.DoTask doTask =
-                new io.serverlessworkflow.api.types.DoTask().withDo(actionItems);
-        return new TaskItem(name, new Task().withDoTask(doTask));
-    }
-
-    /**
-     * Build a map of event-definition name → CloudEvent type string
-     * from the workflow's top-level events block.
-     * Used by handleListen() to resolve eventRef names to CloudEvent types.
-     */
-    private static Map<String, String> buildEventTypeMap(io.serverlessworkflow.api.Workflow src) {
-        Map<String, String> map = new HashMap<>();
-        if (src.getEvents() == null || src.getEvents().getEventDefs() == null) {
-            return map;
-        }
-        for (EventDefinition def : src.getEvents().getEventDefs()) {
-            if (def.getName() != null) {
-                // Use the declared CloudEvent type if present, otherwise fall back to the name
-                String type = def.getType() != null ? def.getType() : def.getName();
-                map.put(def.getName(), type);
-            }
-        }
-        return map;
-    }
-
-    
-
-    
+  
 }

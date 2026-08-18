@@ -1,0 +1,81 @@
+{
+  "document" : {
+    "dsl" : "1.0.0",
+    "namespace" : "default",
+    "name" : "applicationprocessing",
+    "version" : "1.0"
+  },
+  "do" : [ {
+    "CheckApplicant" : {
+      "switch" : [ {
+        "applicantIsAdult" : {
+          "when" : ".applicant.age >= 18",
+          "then" : "ApproveApplication"
+        }
+      }, {
+        "default" : {
+          "then" : "RejectApplication"
+        }
+      } ]
+    }
+  }, {
+    "RejectApplication" : {
+      "do" : [ {
+        "sendRejectionEmailFunction" : {
+          "call" : "sendRejectionEmailFunction",
+          "with" : {
+            "customer" : "${ .customer }"
+          }
+        }
+      } ]
+    }
+  }, {
+    "ApproveApplication" : {
+      "do" : [ {
+        "sendApprovalEmailFunction" : {
+          "call" : "sendApprovalEmailFunction",
+          "with" : {
+            "customer" : "${ .customer }"
+          }
+        }
+      }, {
+        "updateApplicationStatusFunction" : {
+          "call" : "updateApplicationStatusFunction",
+          "with" : {
+            "applicationId" : "${ .applicationId }",
+            "status" : "approved"
+          }
+        }
+      } ]
+    }
+  }, {
+    "NotifyParallel" : {
+      "fork" : {
+        "branches" : [ {
+          "sendEmailNotificationFunction" : {
+            "do" : [ {
+              "sendEmailNotificationFunction" : {
+                "call" : "sendEmailNotificationFunction",
+                "with" : {
+                  "customer" : "${ .customer }"
+                }
+              }
+            } ]
+          }
+        }, {
+          "sendSMSNotificationFunction" : {
+            "do" : [ {
+              "sendSMSNotificationFunction" : {
+                "call" : "sendSMSNotificationFunction",
+                "with" : {
+                  "customer" : "${ .customer }"
+                }
+              }
+            } ]
+          }
+        } ],
+        "compete" : false
+      }
+    }
+  } ]
+}
