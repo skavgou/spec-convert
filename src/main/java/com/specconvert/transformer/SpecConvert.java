@@ -9,8 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 // 0.8
-import io.serverlessworkflow.api.actions.Action;
-import io.serverlessworkflow.api.events.EventDefinition;
 import io.serverlessworkflow.api.mapper.JsonObjectMapper;
 import io.serverlessworkflow.api.mapper.YamlObjectMapper;
 import io.serverlessworkflow.api.states.EventState;
@@ -24,13 +22,10 @@ import io.serverlessworkflow.api.interfaces.State;
 // 1.0
 import io.serverlessworkflow.api.types.Document;
 import io.serverlessworkflow.api.types.DurationInline;
-import io.serverlessworkflow.api.types.ForkTask;
-import io.serverlessworkflow.api.types.ForkTaskConfiguration;
 import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
 import io.serverlessworkflow.api.WorkflowFormat;
 import io.serverlessworkflow.api.WorkflowWriter;
-import java.util.HashMap;
 import java.util.Map;
 
 // Workflow10 = io.serverlessworkflow.api.types.Workflow  (1.0 output)
