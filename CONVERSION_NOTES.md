@@ -64,7 +64,7 @@ The 0.8 `states` array becomes a 1.0 `do` array. Each state becomes a single-key
 | `"inject"`     | `{ set: { ...data } }`      | The state's `data` object is copied directly into a `set` wrapper.                                        |
 | `"sleep"`      | `{ wait: { seconds: N } }`  | The `duration` ISO 8601 string (e.g. `PT5S`) is parsed into total seconds. Defaults to `PT0S` if absent. |
 | `"switch"`     | `{ switch: [ ... ] }`       | Each `dataConditions` entry becomes a named case. EL expressions (`${ ... }`) are stripped and flagged, may need to be manually handled. Not complete. |
-| `"operation"`  | `{ do: [ ... ] }` or `{ fork: { ... } }` | `sequential` (default) → a `do` task containing one call task per action. `parallel` → a `fork` task with one branch per action. |
+| `"callback"`   | `{ do: [ call, listen, switch ] }` | A three-step `do` task: (1) the outgoing `action` becomes a call task, (2) a `listen` task waits for the `eventRef` CloudEvent, (3) a `switch` task routes on the received event type. |
 
 ---
 
@@ -142,35 +142,53 @@ Condition names are **camelCased** for use as YAML keys (e.g. `"Applicant is adu
 
 ---
 
-### `operation` → `do` (sequential) or `fork` (parallel)
-
-**Sequential — one call task per action, executed in order:**
+### `callback` → `do[call + listen + switch]`
 
 ```json
 // 0.8
 {
-  "name": "RejectApplication",
-  "type": "operation",
-  "actionMode": "sequential",
-  "actions": [
-    {
-      "functionRef": {
-        "refName": "sendRejectionEmailFunction",
-        "arguments": { "customer": "${ .customer }" }
-      }
-    }
-  ],
-  "end": true
+  "name": "RequestVitals",
+  "type": "callback",
+  "action": {
+    "name": "sendVitalsRequest",
+    "functionRef": { "refName": "sendVitalsRequest", "arguments": { "patientId": "${ .patientId }" } }
+  },
+  "eventRef": "VitalsReceived",
+  "transition": { "nextState": "ProcessVitals" }
 }
 
 // 1.0
 {
-  "RejectApplication": {
+  "RequestVitals": {
     "do": [
       {
-        "sendRejectionEmailFunction": {
-          "call": "sendRejectionEmailFunction",
-          "with": { "customer": "${ .customer }" }
+        "sendVitalsRequest": {
+          "call": "sendVitalsRequest",
+          "with": { "patientId": "${ .patientId }" }
+        }
+      },
+      {
+        "RequestVitalsListen": {
+          "listen": {
+            "to": {
+              "any": [{ "with": { "type": "com.hospital.vitals.received" } }]
+            }
+          }
+        }
+      },
+      {
+        "RequestVitalsRoute": {
+          "switch": [
+            {
+              "callbackReceived": {
+                "when": "${ .type == \"com.hospital.vitals.received\" }",
+                "then": "ProcessVitals"
+              }
+            },
+            {
+              "default": { "then": "end" }
+            }
+          ]
         }
       }
     ]
@@ -178,42 +196,12 @@ Condition names are **camelCased** for use as YAML keys (e.g. `"Applicant is adu
 }
 ```
 
-**Parallel — each action becomes its own branch inside a `fork` task:**
+The outer `do` task preserves the sequential semantics of the original callback state:
+- The call task fires first (outgoing trigger).
+- The listen task blocks until the matching CloudEvent arrives.
+- The switch task confirms the event type and routes to the transition target. The `default` branch handles any unexpected outcome by ending the flow segment.
 
-```json
-// 0.8
-{
-  "name": "NotifyParallel",
-  "type": "operation",
-  "actionMode": "parallel",
-  "actions": [
-    { "functionRef": { "refName": "sendEmailNotificationFunction", "arguments": { "customer": "${ .customer }" } } },
-    { "functionRef": { "refName": "sendSMSNotificationFunction",  "arguments": { "customer": "${ .customer }" } } }
-  ],
-  "end": true
-}
-
-// 1.0
-{
-  "NotifyParallel": {
-    "fork": {
-      "compete": false,
-      "branches": [
-        {
-          "sendEmailNotificationFunction": {
-            "do": [ { "sendEmailNotificationFunction": { "call": "sendEmailNotificationFunction", "with": { "customer": "${ .customer }" } } } ]
-          }
-        },
-        {
-          "sendSMSNotificationFunction": {
-            "do": [ { "sendSMSNotificationFunction": { "call": "sendSMSNotificationFunction", "with": { "customer": "${ .customer }" } } } ]
-          }
-        }
-      ]
-    }
-  }
-}
-```
+If the callback state has no `action`, the call task step is omitted and the `do` contains only the listen and switch tasks.
 
 ---
 

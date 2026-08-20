@@ -1,0 +1,45 @@
+{
+  "id": "callback_workflow",
+  "version": "1.0",
+  "specVersion": "0.8",
+  "name": "Callback Workflow",
+  "start": "CallExternalService",
+  "events": [
+    {
+      "name": "callbackEvent",
+      "source": "external-service",
+      "type": "callback.received.v1"
+    }
+  ],
+  "functions": [
+    {
+      "name": "callbackFunction",
+      "type": "rest",
+      "operation": "classpath:specs/external-service.yaml#sendRequest"
+    }
+  ],
+  "states": [
+    {
+      "name": "CallExternalService",
+      "type": "callback",
+      "action": {
+        "functionRef": {
+          "refName": "callbackFunction",
+          "arguments": {
+            "requestId": "$.requestId"
+          }
+        }
+      },
+      "eventRef": "callbackEvent",
+      "transition": "ProcessResult"
+    },
+    {
+      "name": "ProcessResult",
+      "type": "inject",
+      "data": {
+        "status": "completed"
+      },
+      "end": true
+    }
+  ]
+}

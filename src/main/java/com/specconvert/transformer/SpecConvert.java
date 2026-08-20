@@ -11,6 +11,7 @@ import java.util.List;
 // 0.8
 import io.serverlessworkflow.api.mapper.JsonObjectMapper;
 import io.serverlessworkflow.api.mapper.YamlObjectMapper;
+import io.serverlessworkflow.api.states.CallbackState;
 import io.serverlessworkflow.api.states.EventState;
 import io.serverlessworkflow.api.states.InjectState;
 import io.serverlessworkflow.api.states.ParallelState;
@@ -137,12 +138,13 @@ public class SpecConvert {
      * Each state becomes a TaskItem keyed by the state's name.
      *
      * Handled mappings:
-     *   inject    - set    (state data → set variables)
-     *   sleep     - wait   (ISO 8601 duration → DurationInline)
-     *   switch    - switch (dataConditions + defaultCondition)
-     *   parallel  - fork   (branches + completionType)
-     *   event     - listen (onEvents + exclusive flag)
-     *   operation - call   (actions → call tasks; sequential = do, parallel = fork)
+     *   inject    - set             (state data → set variables)
+     *   sleep     - wait            (ISO 8601 duration → DurationInline)
+     *   switch    - switch          (dataConditions + defaultCondition)
+     *   parallel  - fork            (branches + completionType)
+     *   event     - listen          (onEvents + exclusive flag)
+     *   operation - call            (actions → call tasks; sequential = do, parallel = fork)
+     *   callback  - do[call+listen+switch]  (action → listen → conditional route)
      */
     private static List<TaskItem> buildDo(io.serverlessworkflow.api.Workflow src) {
         List<TaskItem> items = new ArrayList<>();
@@ -174,6 +176,9 @@ public class SpecConvert {
 
             } else if (state instanceof EventState) {
                 items.add(Listen.handleListen(stateName, (EventState) state, eventTypeByName));
+
+            } else if (state instanceof CallbackState) {
+                items.add(Callback.handleCallback(stateName, (CallbackState) state, eventTypeByName));
 
             } else {
                 System.err.println("[WARN] Unsupported state type for state '"

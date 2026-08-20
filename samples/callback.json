@@ -1,0 +1,48 @@
+{
+  "id": "patientVitalsCallback",
+  "version": "1.0",
+  "specVersion": "0.8",
+  "name": "Patient Vitals Callback",
+  "events": [
+    {
+      "name": "VitalsReceived",
+      "type": "com.hospital.vitals.received",
+      "kind": "consumed"
+    }
+  ],
+  "functions": [
+    {
+      "name": "sendVitalsRequest",
+      "operation": "vitalsapi.yaml#requestVitals"
+    }
+  ],
+  "states": [
+    {
+      "name": "RequestVitals",
+      "type": "callback",
+      "action": {
+        "name": "sendVitalsRequest",
+        "functionRef": {
+          "refName": "sendVitalsRequest",
+          "arguments": {
+            "patientId": "${ .patientId }"
+          }
+        }
+      },
+      "eventRef": "VitalsReceived",
+      "transition": {
+        "nextState": "ProcessVitals"
+      }
+    },
+    {
+      "name": "ProcessVitals",
+      "type": "inject",
+      "data": {
+        "status": "vitals received"
+      },
+      "end": {
+        "terminate": true
+      }
+    }
+  ]
+}

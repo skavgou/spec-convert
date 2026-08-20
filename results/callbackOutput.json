@@ -1,0 +1,52 @@
+{
+  "document" : {
+    "dsl" : "1.0.0",
+    "namespace" : "default",
+    "name" : "patientVitalsCallback",
+    "version" : "1.0"
+  },
+  "do" : [ {
+    "RequestVitals" : {
+      "do" : [ {
+        "sendVitalsRequest" : {
+          "call" : "sendVitalsRequest",
+          "with" : {
+            "patientId" : "${ .patientId }"
+          }
+        }
+      }, {
+        "RequestVitalsListen" : {
+          "listen" : {
+            "to" : {
+              "any" : [ {
+                "with" : {
+                  "type" : "com.hospital.vitals.received"
+                }
+              } ]
+            },
+            "read" : "data"
+          }
+        }
+      }, {
+        "RequestVitalsRoute" : {
+          "switch" : [ {
+            "callbackReceived" : {
+              "when" : "${ .type == \"com.hospital.vitals.received\" }",
+              "then" : "ProcessVitals"
+            }
+          }, {
+            "default" : {
+              "then" : "end"
+            }
+          } ]
+        }
+      } ]
+    }
+  }, {
+    "ProcessVitals" : {
+      "set" : {
+        "status" : "vitals received"
+      }
+    }
+  } ]
+}
