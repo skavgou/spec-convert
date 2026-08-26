@@ -1,66 +1,75 @@
-# SpecConvert
+# swf-migrate
 
 CNCF Serverless Workflow **0.8 → 1.0** converter.
 
-A plain-Java command-line tool built with Maven.
+---
+
+## Install (no Java required)
+
+Download a pre-built binary from the [releases page](../../releases) and place it on your PATH, or use the one-liner for your platform.
+
+**macOS / Linux**
+```bash
+curl -fsSL https://raw.githubusercontent.com/<org>/spec-convert/main/install.sh | bash
+```
+
+**Windows (PowerShell)**
+```powershell
+irm https://raw.githubusercontent.com/<org>/spec-convert/main/install.ps1 | iex
+```
 
 ---
 
-## Requirements
+## Usage
 
-- Java 17+
-- Maven 3.8+
-
----
-
-## Build
-
-```bash
-./build.sh
+```
+swf-migrate <input-file> [-o <output-file>]
 ```
 
-Or directly with Maven:
-
-```bash
-mvn package
-```
-
-Produces `target/spec-convert.jar` — a self-contained fat jar with all dependencies included.
-
----
-
-## Run
-
-```bash
-./run.sh <input-file> [output-file]
-```
-
-Or directly with Java:
-
-```bash
-java -jar target/spec-convert.jar <input-file> [output-file]
-```
-
-- Both JSON (`.json`) and YAML (`.yaml` / `.yml`) inputs are supported.
-- If no output file is given the result is printed to stdout.
-- The output format matches the input format, inferred from the file extension.
+- Input can be `.json`, `.yaml`, or `.yml`
+- Output defaults to `<input-stem>-migrated.yaml` alongside the input file
+- Use `-o` to specify a custom output path (format inferred from extension)
 
 **Examples**
 
 ```bash
-# Print converted JSON to stdout
-./run.sh samples/hello.json
+# Default output → samples/hello-migrated.yaml
+swf-migrate samples/hello.json
 
-# Write converted JSON to a file
-./run.sh samples/hello.json results/hello-converted.json
+# Explicit output path
+swf-migrate samples/hello.json -o results/hello-v1.yaml
 ```
 
 ---
 
-## Clean
+## Build from source
+
+Requires Java 17+ and Maven 3.8+.
+
+**Fat jar (requires Java to run)**
+```bash
+mvn package
+java -jar target/spec-convert.jar <input-file> [-o <output-file>]
+```
+
+**Native binary (no Java required to run)**
+
+Requires [GraalVM JDK 21](https://www.graalvm.org/downloads/) to build.
 
 ```bash
-mvn clean
+mvn package -Pnative
+./target/swf-migrate <input-file> [-o <output-file>]
+```
+
+---
+
+## Release a new version
+
+Tag a commit with a version tag — GitHub Actions builds binaries for Linux, macOS, and Windows and attaches them to the release automatically.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ---
