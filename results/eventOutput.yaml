@@ -20,32 +20,15 @@ do:
       item: item
       at: index
       do:
-      - routeByEventType:
-          switch:
-          - temperatureHigh:
-              when: "${ .item.type == \"com.hospital.vitals.temperature.high\" }"
-              then: temperatureHigh
-          - bloodpressureHigh:
-              when: "${ .item.type == \"com.hospital.vitals.bloodpressure.high\" }"
-              then: bloodpressureHigh
-          - respirationHigh:
-              when: "${ .item.type == \"com.hospital.vitals.respiration.high\" }"
-              then: respirationHigh
-      - temperatureHigh:
-          do:
-          - sendTylenolOrder:
-              call: sendTylenolOrder
-              with:
-                patientid: "${ .patientId }"
-      - bloodpressureHigh:
-          do:
-          - callNurse:
-              call: callNurse
-              with:
-                patientid: "${ .patientId }"
-      - respirationHigh:
-          do:
-          - callPulmonologist:
-              call: callPulmonologist
-              with:
-                patientid: "${ .patientId }"
+      - sendTylenolOrder:
+          call: sendTylenolOrder
+          with:
+            patientid: "${ .patientId }"
+      - callNurse:
+          call: callNurse
+          with:
+            patientid: "${ .patientId }"
+      - callPulmonologist:
+          call: callPulmonologist
+          with:
+            patientid: "${ .patientId }"

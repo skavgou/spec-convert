@@ -36,15 +36,12 @@ public class Listen {
      *
      * Actions mapping via foreach:
      *   1.0 ListenTask carries a `foreach` (SubscriptionIterator) whose `do` list
-     *   executes for every consumed event. The iterator variable "${ .item }" holds
+     *   executes for every consumed event. The iterator variable "item" holds
      *   the received CloudEvent, so actions can inspect it.
      *
-     *   - Uniform actions (all onEvents share the same actions): the actions are placed
-     *     directly in foreach.do.
-     *   - Mixed actions (different onEvents entries have different actions): a switch task
-     *     is generated inside foreach.do that dispatches on "${ .item.type }" to reach the
-     *     correct call task for each event type.
-     *   - No actions on any onEvents: foreach is omitted entirely.
+     *   All onEvents actions are flattened into a single do list. If different onEvents
+     *   entries have different actions, each distinct action list is appended in order.
+     *   If no onEvents entries have any actions, foreach is omitted entirely.
      */
     protected static TaskItem handleListen(
             String name,
@@ -53,9 +50,8 @@ public class Listen {
 
         List<EventFilter> filters = new ArrayList<>();
 
-        // Collect per-eventRef action lists, keyed by resolved CloudEvent type
-        // LinkedHashMap preserves insertion order for deterministic output
-        java.util.LinkedHashMap<String, List<Action>> actionsByType = new java.util.LinkedHashMap<>();
+        // Collect all actions across onEvents entries for the foreach do list
+        List<Action> allActions = new ArrayList<>();
 
         if (state.getOnEvents() != null) {
             for (OnEvents onEvent : state.getOnEvents()) {
@@ -67,9 +63,9 @@ public class Listen {
                         String cloudEventType = eventTypeByName.getOrDefault(eventRef, eventRef);
                         EventProperties props = new EventProperties().withType(cloudEventType);
                         filters.add(new EventFilter().withWith(props));
-                        actionsByType.put(cloudEventType, actions);
                     }
                 }
+                allActions.addAll(actions);
             }
         }
 
@@ -87,9 +83,11 @@ public class Listen {
                 .withListen(new ListenTaskConfiguration().withTo(listenTo));
 
         // Build the foreach iterator only when at least one onEvents entry has actions
-        boolean anyActions = actionsByType.values().stream().anyMatch(a -> !a.isEmpty());
-        if (anyActions) {
-            List<TaskItem> foreachDo = util.buildForeachDo(name, actionsByType);
+        if (!allActions.isEmpty()) {
+            List<TaskItem> foreachDo = new ArrayList<>();
+            for (Action action : allActions) {
+                foreachDo.add(util.convertAction(action));
+            }
             // item = the variable name that holds each received CloudEvent inside foreach.do
             listenTask.withForeach(new SubscriptionIterator()
                     .withItem("item")

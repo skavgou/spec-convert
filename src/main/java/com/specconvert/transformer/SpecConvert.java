@@ -13,6 +13,7 @@ import io.serverlessworkflow.api.mapper.JsonObjectMapper;
 import io.serverlessworkflow.api.mapper.YamlObjectMapper;
 import io.serverlessworkflow.api.states.CallbackState;
 import io.serverlessworkflow.api.states.EventState;
+import io.serverlessworkflow.api.states.ForEachState;
 import io.serverlessworkflow.api.states.InjectState;
 import io.serverlessworkflow.api.states.ParallelState;
 import io.serverlessworkflow.api.states.OperationState;
@@ -57,29 +58,47 @@ public class SpecConvert {
             return;
         }
 
-        if (args.length > 2) {
-            throw new IllegalArgumentException("Expected 1 or 2 arguments.");
+        // Parse arguments: swf-migrate <input> [-o <output>]
+        Path inputPath = null;
+        Path outputPath = null;
+
+        for (int i = 0; i < args.length; i++) {
+            if ("-o".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException("-o requires a file path argument.");
+                }
+                outputPath = Path.of(args[++i]);
+            } else if (inputPath == null) {
+                inputPath = Path.of(args[i]);
+            } else {
+                throw new IllegalArgumentException("Unexpected argument: " + args[i]);
+            }
         }
 
-        Path inputPath = Path.of(args[0]);
-        Path outputPath = args.length == 2 ? Path.of(args[1]) : null;
+        if (inputPath == null) {
+            throw new IllegalArgumentException("No input file specified.");
+        }
+
+        // Default output: <stem>-migrated.yaml alongside the input file
+        if (outputPath == null) {
+            String inputName = inputPath.getFileName().toString();
+            String stem = inputName.contains(".")
+                    ? inputName.substring(0, inputName.lastIndexOf('.'))
+                    : inputName;
+            Path parent = inputPath.getParent();
+            outputPath = (parent != null ? parent : Path.of(".")).resolve(stem + "-migrated.yaml");
+        }
 
         io.serverlessworkflow.api.Workflow wf08 = read(inputPath);
         io.serverlessworkflow.api.types.Workflow wf10 = convert(wf08);
 
-        WorkflowFormat format = outputPath != null
-                ? WorkflowFormat.fromPath(outputPath)
-                : WorkflowFormat.fromPath(inputPath);
+        WorkflowFormat format = WorkflowFormat.fromPath(outputPath);
 
         // Suppress zero-valued duration fields (days:0, hours:0, etc.) from the output
         format.mapper().addMixIn(DurationInline.class, DurationInlineMixIn.class);
 
-        if (outputPath != null) {
-            WorkflowWriter.writeWorkflow(outputPath, wf10, format);
-            System.out.println("Wrote converted file to: " + outputPath);
-        } else {
-            System.out.println(WorkflowWriter.workflowAsString(wf10, format));
-        }
+        WorkflowWriter.writeWorkflow(outputPath, wf10, format);
+        System.out.println("Wrote converted file to: " + outputPath);
     }
 
     /**
@@ -144,6 +163,7 @@ public class SpecConvert {
      *   parallel  - fork            (branches + completionType)
      *   event     - listen          (onEvents + exclusive flag)
      *   operation - call            (actions → call tasks; sequential = do, parallel = fork)
+     *   forEach   - for             (inputCollection + iterationParam + actions)
      *   callback  - do[call+listen+switch]  (action → listen → conditional route)
      */
     private static List<TaskItem> buildDo(io.serverlessworkflow.api.Workflow src) {
@@ -176,6 +196,9 @@ public class SpecConvert {
 
             } else if (state instanceof EventState) {
                 items.add(Listen.handleListen(stateName, (EventState) state, eventTypeByName));
+
+            } else if (state instanceof ForEachState) {
+                items.add(ForEach.handleForEach(stateName, (ForEachState) state));
 
             } else if (state instanceof CallbackState) {
                 items.add(Callback.handleCallback(stateName, (CallbackState) state, eventTypeByName));
