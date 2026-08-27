@@ -66,15 +66,15 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          mv artifacts/swf-migrate-linux/swf-migrate   artifacts/swf-migrate-linux
-          mv artifacts/swf-migrate-macos/swf-migrate   artifacts/swf-migrate-macos
-          mv artifacts/swf-migrate-windows.exe/swf-migrate.exe artifacts/swf-migrate-windows.exe
+          mv artifacts/swf-migrate-linux/swf-migrate        swf-migrate-linux
+          mv artifacts/swf-migrate-macos/swf-migrate        swf-migrate-macos
+          mv artifacts/swf-migrate-windows.exe/swf-migrate.exe swf-migrate-windows.exe
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/swf-migrate-linux
-            artifacts/swf-migrate-macos
-            artifacts/swf-migrate-windows.exe
+            swf-migrate-linux
+            swf-migrate-macos
+            swf-migrate-windows.exe
           generate_release_notes: true
