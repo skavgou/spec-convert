@@ -32,19 +32,15 @@ jobs:
           distribution: 'graalvm'
 
       - name: Install v08 SDK into local Maven repo
+        shell: bash
         run: |
-          mvn dependency:copy \
-            -Dartifact=io.serverlessworkflow:serverlessworkflow-api:4.1.0.Final:jar \
-            -DoutputDirectory=. \
-            -Dmdep.stripVersion=false \
-            -q
-          mvn install:install-file \
-            -Dfile=serverlessworkflow-api-4.1.0.Final.jar \
+          mvn dependency:get -q -Dartifact=io.serverlessworkflow:serverlessworkflow-api:4.1.0.Final
+          mvn install:install-file -q \
+            -Dfile="${HOME}/.m2/repository/io/serverlessworkflow/serverlessworkflow-api/4.1.0.Final/serverlessworkflow-api-4.1.0.Final.jar" \
             -DgroupId=io.serverlessworkflow.v08 \
             -DartifactId=serverlessworkflow-api \
             -Dversion=4.1.0.Final \
-            -Dpackaging=jar \
-            -q
+            -Dpackaging=jar
 
       - name: Build native binary
         run: mvn package -Pnative -q
