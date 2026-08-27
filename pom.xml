@@ -124,8 +124,8 @@
                             <mainClass>com.specconvert.transformer.SpecConvert</mainClass>
                             <buildArgs>
                                 <buildArg>--no-fallback</buildArg>
-                                <buildArg>--initialize-at-build-time=org.slf4j</buildArg>
                                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                                <buildArg>--initialize-at-build-time=org.slf4j</buildArg>
                             </buildArgs>
                         </configuration>
                     </plugin>
