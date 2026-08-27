@@ -33,12 +33,13 @@ jobs:
 
       - name: Install v08 SDK into local Maven repo
         run: |
-          mvn dependency:get \
-            -Dartifact=io.serverlessworkflow:serverlessworkflow-api:4.1.0.Final \
-            -Ddest=serverlessworkflow-api-v08.jar \
+          mvn dependency:copy \
+            -Dartifact=io.serverlessworkflow:serverlessworkflow-api:4.1.0.Final:jar \
+            -DoutputDirectory=. \
+            -Dmdep.stripVersion=false \
             -q
           mvn install:install-file \
-            -Dfile=serverlessworkflow-api-v08.jar \
+            -Dfile=serverlessworkflow-api-4.1.0.Final.jar \
             -DgroupId=io.serverlessworkflow.v08 \
             -DartifactId=serverlessworkflow-api \
             -Dversion=4.1.0.Final \
