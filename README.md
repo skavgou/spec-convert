@@ -6,7 +6,7 @@ CNCF Serverless Workflow **0.8 → 1.0** converter.
 
 ## Install (no Java required)
 
-Download a pre-built binary from the (CURRENTLY NOT WORKING)[releases page](../../releases) and place it on your PATH, or use the one-liner for your platform.
+Download a pre-built binary from the [releases page](../../releases) and place it on your PATH, or use the one-liner for your platform.
 
 **macOS / Linux**
 ```bash
