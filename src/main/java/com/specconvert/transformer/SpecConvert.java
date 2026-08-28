@@ -62,20 +62,26 @@ public class SpecConvert {
         Path inputPath = null;
         Path outputPath = null;
         String outFormat = "yaml";
+        String namespace = "default";
 
         for (int i = 0; i < args.length; i++) {
-            if ("-o".equals(args[i])) {
+            if ("-o".equals(args[i]) || "--output".equals(args[i])) {
                 if (i + 1 >= args.length) {
-                    throw new IllegalArgumentException("-o requires a file path argument.");
+                    throw new IllegalArgumentException(args[i] + " requires a file path argument.");
                 }
                 outputPath = Path.of(args[++i]);
-            } else if ("-f".equals(args[i])) {
+            } else if ("-f".equals(args[i]) || "--format".equals(args[i])) {
                 if (i + 1 >= args.length) {
                     throw new IllegalArgumentException("-f requires a format argument.");
                 } else if (!(args[i+1].equals("yaml") || args[i+1].equals("json"))){
-                    throw new IllegalArgumentException("-f requires either 'json' or 'yaml' as format.");
+                    throw new IllegalArgumentException(args[i] + " requires either 'json' or 'yaml' as format.");
                 }
                 outFormat = (args[++i]);
+            } else if ("-n".equals(args[i]) || "--namespace".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException(args[i] + " requires a namespace argument.");
+                }
+                namespace = (args[++i]);
             } else if (inputPath == null) {
                 inputPath = Path.of(args[i]);
             } else {
@@ -98,7 +104,7 @@ public class SpecConvert {
         }
 
         io.serverlessworkflow.api.Workflow wf08 = read(inputPath);
-        io.serverlessworkflow.api.types.Workflow wf10 = convert(wf08);
+        io.serverlessworkflow.api.types.Workflow wf10 = convert(wf08, namespace);
 
         WorkflowFormat format = WorkflowFormat.fromPath(outputPath);
 
@@ -122,9 +128,9 @@ public class SpecConvert {
      * Convert a parsed 0.8 workflow into 1.0.
      */
     public static io.serverlessworkflow.api.types.Workflow convert(
-            io.serverlessworkflow.api.Workflow src) {
+            io.serverlessworkflow.api.Workflow src, String namespace) {
 
-        Document document = buildDocument(src);
+        Document document = buildDocument(src, namespace);
         List<TaskItem> doList = buildDo(src);
         return new io.serverlessworkflow.api.types.Workflow(document, doList);
     }
@@ -136,13 +142,12 @@ public class SpecConvert {
     /**
      * Build the top-level document block from 0.8 fields
      */
-    private static Document buildDocument(io.serverlessworkflow.api.Workflow src) {
+    private static Document buildDocument(io.serverlessworkflow.api.Workflow src, String namespace) {
         // dsl — always "1.0.0" for output
         String dsl = "1.0.0";
         System.err.println("[INFO] dsl set to " + dsl);
 
         // namespace — 0.8 spec has no namespace field; fall back to "default"
-        String namespace = "default";
         System.err.println("[INFO] namespace set to " + namespace);
 
         // name — mapped from 0.8 "id"
