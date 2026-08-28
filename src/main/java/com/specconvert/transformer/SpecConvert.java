@@ -61,6 +61,7 @@ public class SpecConvert {
         // Parse arguments: swf-migrate <input> [-o <output>]
         Path inputPath = null;
         Path outputPath = null;
+        String outFormat = "yaml";
 
         for (int i = 0; i < args.length; i++) {
             if ("-o".equals(args[i])) {
@@ -68,6 +69,13 @@ public class SpecConvert {
                     throw new IllegalArgumentException("-o requires a file path argument.");
                 }
                 outputPath = Path.of(args[++i]);
+            } else if ("-f".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException("-f requires a format argument.");
+                } else if (!(args[i+1].equals("yaml") || args[i+1].equals("json"))){
+                    throw new IllegalArgumentException("-f requires either 'json' or 'yaml' as format.");
+                }
+                outFormat = (args[++i]);
             } else if (inputPath == null) {
                 inputPath = Path.of(args[i]);
             } else {
@@ -86,7 +94,7 @@ public class SpecConvert {
                     ? inputName.substring(0, inputName.lastIndexOf('.'))
                     : inputName;
             Path parent = inputPath.getParent();
-            outputPath = (parent != null ? parent : Path.of(".")).resolve(stem + "-migrated.yaml");
+            outputPath = (parent != null ? parent : Path.of(".")).resolve(stem + "-migrated." + outFormat);
         }
 
         io.serverlessworkflow.api.Workflow wf08 = read(inputPath);

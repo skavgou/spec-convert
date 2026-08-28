@@ -47,6 +47,39 @@
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <version>0.10.4</version>
+            <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>build-native</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>compile-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <imageName>swf-migrate</imageName>
+              <mainClass>com.specconvert.transformer.SpecConvert</mainClass>
+              <buildArgs>
+                <buildArg>--no-fallback</buildArg>
+                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <buildArg>--initialize-at-build-time=org.slf4j</buildArg>
+              </buildArgs>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
   <properties>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.source>17</maven.compiler.source>

@@ -1,0 +1,52 @@
+{
+  "document" : {
+    "dsl" : "1.0.0",
+    "namespace" : "default",
+    "name" : "callback_workflow",
+    "version" : "1.0"
+  },
+  "do" : [ {
+    "CallExternalService" : {
+      "do" : [ {
+        "callbackFunction" : {
+          "call" : "callbackFunction",
+          "with" : {
+            "requestId" : "$.requestId"
+          }
+        }
+      }, {
+        "CallExternalServiceListen" : {
+          "listen" : {
+            "to" : {
+              "any" : [ {
+                "with" : {
+                  "type" : "callback.received.v1"
+                }
+              } ]
+            },
+            "read" : "data"
+          }
+        }
+      }, {
+        "CallExternalServiceRoute" : {
+          "switch" : [ {
+            "callbackReceived" : {
+              "when" : "${ .type == \"callback.received.v1\" }",
+              "then" : "ProcessResult"
+            }
+          }, {
+            "default" : {
+              "then" : "end"
+            }
+          } ]
+        }
+      } ]
+    }
+  }, {
+    "ProcessResult" : {
+      "set" : {
+        "status" : "completed"
+      }
+    }
+  } ]
+}
