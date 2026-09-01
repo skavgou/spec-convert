@@ -2,3 +2,5 @@ target/
 out/
 lib/
 .vscode/
+samples/
+resulsts/

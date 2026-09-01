@@ -100,9 +100,12 @@ public class util {
     }
 
     public static void printUsage() {
-        System.out.println("Usage: swf-migrate <input-file> [-o <output-file>]");
+        System.out.println("Usage: swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]");
         System.out.println("Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.");
-        System.out.println("Output defaults to <input-stem>-migrated.yaml if -o is not given.");
+        System.out.println();
+        System.out.println("  -o, --output     Output file path (default: <input-stem>-migrated.yaml)");
+        System.out.println("  -f, --format     Output format: yaml or json (default: yaml)");
+        System.out.println("  -n, --namespace  Namespace in the 1.0 document header (default: default)");
     }
 
     /**

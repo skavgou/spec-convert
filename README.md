@@ -23,12 +23,16 @@ irm https://raw.githubusercontent.com/skavgou/spec-convert/main/install.ps1 | ie
 ## Usage
 
 ```
-swf-migrate <input-file> [-o <output-file>]
+swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
 ```
 
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-o`, `--output` | Output file path (format inferred from extension) | `<input-stem>-migrated.yaml` |
+| `-f`, `--format` | Output format: `yaml` or `json` | `yaml` |
+| `-n`, `--namespace` | Namespace written to the 1.0 document header | `default` |
+
 - Input can be `.json`, `.yaml`, or `.yml`
-- Output defaults to `<input-stem>-migrated.yaml` alongside the input file
-- Use `-o` to specify a custom output path (format inferred from extension)
 
 **Examples**
 
@@ -38,6 +42,12 @@ swf-migrate samples/hello.json
 
 # Explicit output path
 swf-migrate samples/hello.json -o results/hello-v1.yaml
+
+# Output as JSON
+swf-migrate samples/hello.json -f json
+
+# Custom output path and namespace
+swf-migrate samples/hello.json -o results/hello-v1.yaml -n my-org
 ```
 
 ---
@@ -49,7 +59,7 @@ Requires Java 17+ and Maven 3.8+.
 **Fat jar (requires Java to run)**
 ```bash
 mvn package
-java -jar target/spec-convert.jar <input-file> [-o <output-file>]
+java -jar target/spec-convert.jar <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
 ```
 
 **Native binary (no Java required to run)**
@@ -58,7 +68,7 @@ Requires [GraalVM JDK 21](https://www.graalvm.org/downloads/) to build.
 
 ```bash
 mvn package -Pnative
-./target/swf-migrate <input-file> [-o <output-file>]
+./target/swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
 ```
 
 ---
