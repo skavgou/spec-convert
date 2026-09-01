@@ -27,7 +27,11 @@ public class Operation {
      * Each action's functionRef becomes a call task:
      *   { "<refName>": { call: "<refName>", with: { <arguments> } } }
      */
-    protected static TaskItem handleOperation(String name, OperationState state) {
+    public static TaskItem handleOperation(String name, OperationState state) {
+        return handleOperationFunction(name, state);
+    }
+
+    protected static TaskItem handleOperationFunction(String name, OperationState state) {
         List<Action> actions = state.getActions() != null ? state.getActions() : java.util.Collections.emptyList();
 
         boolean parallel = state.getActionMode() == OperationState.ActionMode.PARALLEL;

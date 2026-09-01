@@ -24,7 +24,11 @@ public class ForEach {
      *
      * outputCollection and batchSize have no direct 1.0 equivalents and are logged as warnings.
      */
-    protected static TaskItem handleForEach(String name, ForEachState state) {
+    public static TaskItem handleForEach(String name, ForEachState state) {
+        return handleForEachFunction(name, state);
+    }
+
+    protected static TaskItem handleForEachFunction(String name, ForEachState state) {
         String in = state.getInputCollection() != null ? state.getInputCollection() : "${ .[] }";
         String each = state.getIterationParam() != null ? state.getIterationParam() : "item";
 

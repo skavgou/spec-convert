@@ -43,7 +43,14 @@ public class Listen {
      *   entries have different actions, each distinct action list is appended in order.
      *   If no onEvents entries have any actions, foreach is omitted entirely.
      */
-    protected static TaskItem handleListen(
+    public static TaskItem handleListen(
+            String name,
+            EventState state,
+            Map<String, String> eventTypeByName) {
+                return handleListenFunction(name, state, eventTypeByName);
+            }
+
+    protected static TaskItem handleListenFunction(
             String name,
             EventState state,
             Map<String, String> eventTypeByName) {

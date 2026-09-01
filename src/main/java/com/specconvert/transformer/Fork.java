@@ -22,7 +22,11 @@ public class Fork {
      *   allOf   → compete: false  (all branches must finish)
      *   atLeast → compete: true   (first N to complete wins; 1.0 models this as compete)
      */
-    protected static TaskItem handleFork(String name, ParallelState state) {
+    public static TaskItem handleFork(String name, ParallelState state) {
+        return handleForkFunction(name, state);
+    }
+
+    protected static TaskItem handleForkFunction(String name, ParallelState state) {
         // compete: true when only a subset needs to complete (atLeast)
         boolean compete = state.getCompletionType() == ParallelState.CompletionType.AT_LEAST;
 

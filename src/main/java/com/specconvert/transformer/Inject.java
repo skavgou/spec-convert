@@ -8,7 +8,11 @@ import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
 
 public class Inject {
-    protected static TaskItem handleInject(String name, InjectState state) {
+    public static TaskItem handleInject(String name, InjectState state) {
+        return handleInjectFunction(name, state);
+    }
+    
+    protected static TaskItem handleInjectFunction(String name, InjectState state) {
         SetTaskConfiguration cfg = new SetTaskConfiguration();
 
         if (state.getData() != null && state.getData().isObject()) {

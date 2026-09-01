@@ -1,8 +1,18 @@
-package com.specconvert.transformer;
+package com.specconvert;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.specconvert.transformer.Callback;
+import com.specconvert.transformer.ForEach;
+import com.specconvert.transformer.Fork;
+import com.specconvert.transformer.Inject;
+import com.specconvert.transformer.Listen;
+import com.specconvert.transformer.Operation;
+import com.specconvert.transformer.Sleep;
+import com.specconvert.transformer.Switch;
+import com.specconvert.transformer.util;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;

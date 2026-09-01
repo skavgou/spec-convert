@@ -18,7 +18,11 @@ import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
 
 public class Switch {
-    protected static TaskItem handleSwitch(String name, SwitchState state) {
+    public static TaskItem handleSwitch(String name, SwitchState state) {
+        return handleSwitchFunction(name, state);
+    }
+
+    protected static TaskItem handleSwitchFunction(String name, SwitchState state) {
         List<SwitchItem> switchItems = new ArrayList<>();
 
         // Event-based conditions (eventConditions) — map eventRef as name, transition as then

@@ -99,7 +99,7 @@ public class util {
         return trimmed;
     }
 
-    protected static void printUsage() {
+    public static void printUsage() {
         System.out.println("Usage: swf-migrate <input-file> [-o <output-file>]");
         System.out.println("Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.");
         System.out.println("Output defaults to <input-stem>-migrated.yaml if -o is not given.");
@@ -108,7 +108,7 @@ public class util {
     /**
      * Returns true when the path has a .yaml or yml etension extension.
      */
-    static boolean isYaml(Path path) {
+    public static boolean isYaml(Path path) {
         if (path == null) return false;
         String name = path.getFileName().toString().toLowerCase();
         return name.endsWith(".yaml") || name.endsWith(".yml");
@@ -119,7 +119,7 @@ public class util {
      * from the workflow's top-level events block.
      * Used by handleListen() to resolve eventRef names to CloudEvent types.
      */
-    protected static Map<String, String> buildEventTypeMap(io.serverlessworkflow.api.Workflow src) {
+    public static Map<String, String> buildEventTypeMap(io.serverlessworkflow.api.Workflow src) {
         Map<String, String> map = new HashMap<>();
         if (src.getEvents() == null || src.getEvents().getEventDefs() == null) {
             return map;

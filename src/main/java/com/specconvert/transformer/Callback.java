@@ -36,7 +36,11 @@ public class Callback {
      *   - If the state has an end marker, then → "end".
      *   - Otherwise a "TODO" placeholder is emitted with a warning.
      */
-    protected static TaskItem handleCallback(
+    public static TaskItem handleCallback(String name,CallbackState state,Map<String, String> eventTypeByName) {
+        return handleCallbackFunction(name, state, eventTypeByName);
+    }
+
+    protected static TaskItem handleCallbackFunction(
             String name,
             CallbackState state,
             Map<String, String> eventTypeByName) {

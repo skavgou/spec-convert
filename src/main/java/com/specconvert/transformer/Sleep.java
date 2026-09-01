@@ -21,7 +21,11 @@ public class Sleep {
      * Years and months are folded into days (approximate: 1y=365d, 1mo=30d)
      * because DurationInline has no year/month fields.
      */
-    static WaitTask handleWait(SleepState state) {
+    public static WaitTask handleWait(SleepState state) {
+        return handleWaitFunction(state);
+    }
+
+    private static WaitTask handleWaitFunction(SleepState state) {
         String iso8601Duration = state.getDuration();
         if (iso8601Duration == null) iso8601Duration = "PT0S";
 
