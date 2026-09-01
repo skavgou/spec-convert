@@ -54,11 +54,10 @@ interface DurationInlineMixIn {}
  * Output is built via the 1.0 SDK (serverlessworkflow-types 7.25.0.Final).
  *
  * Usage:
- *   java -jar spec-convert.jar <input-file> [output-file]
+ *   swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
  *
- * If no output file is given the converted document is printed to stdout.
+ * Output defaults to <input-stem>-migrated.yaml if -o is not given.
  * Both JSON (.json) and YAML (.yaml / .yml) input files are supported.
- * The output format matches the input format unless overridden.
  */
 public class SpecConvert {
 

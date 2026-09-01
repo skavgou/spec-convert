@@ -80,7 +80,7 @@
                             <finalName>spec-convert</finalName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.specconvert.transformer.SpecConvert</mainClass>
+                                    <mainClass>com.specconvert.SpecConvert</mainClass>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
@@ -121,7 +121,7 @@
                         </executions>
                         <configuration>
                             <imageName>swf-migrate</imageName>
-                            <mainClass>com.specconvert.transformer.SpecConvert</mainClass>
+                            <mainClass>com.specconvert.SpecConvert</mainClass>
                             <buildArgs>
                                 <buildArg>--no-fallback</buildArg>
                                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
