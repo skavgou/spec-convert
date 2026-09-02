@@ -39,6 +39,7 @@ import io.serverlessworkflow.api.types.Document;
 import io.serverlessworkflow.api.types.DurationInline;
 import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
+import jakarta.validation.constraints.Null;
 import io.serverlessworkflow.api.WorkflowFormat;
 import io.serverlessworkflow.api.WorkflowWriter;
 import java.util.Map;
@@ -73,6 +74,7 @@ public class SpecConvert {
         // Parse arguments: swf-migrate <input> [-o <output>]
         Path inputPath = null;
         Path outputPath = null;
+        Path reportPath = null;
         String outFormat = "yaml";
         String namespace = "default";
 
@@ -94,6 +96,11 @@ public class SpecConvert {
                     throw new IllegalArgumentException(args[i] + " requires a namespace argument.");
                 }
                 namespace = (args[++i]);
+            } else if ("-r".equals(args[i]) || "--report".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException(args[i] + " requires a file path argument.");
+                }
+                reportPath = Path.of(args[++i]);
             } else if (inputPath == null) {
                 inputPath = Path.of(args[i]);
             } else {
@@ -140,9 +147,10 @@ public class SpecConvert {
         String stem = inputName.contains(".")
                 ? inputName.substring(0, inputName.lastIndexOf('.'))
                 : inputName;
-        Path reportPath = (outputPath.getParent() != null
+        if (reportPath == null){
+                reportPath = (outputPath.getParent() != null
                 ? outputPath.getParent() : Path.of(".")).resolve(stem + "-report.json");
-
+        }
         ObjectMapper reportMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         reportMapper.writeValue(reportPath.toFile(), report);
         System.out.println("Wrote migration report to:  " + reportPath);
