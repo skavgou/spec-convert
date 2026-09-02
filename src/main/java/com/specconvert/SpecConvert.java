@@ -3,6 +3,9 @@ package com.specconvert;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.specconvert.report.MigrationReport;
+import com.specconvert.report.ReportCollector;
 import com.specconvert.transformer.Callback;
 import com.specconvert.transformer.ForEach;
 import com.specconvert.transformer.Fork;
@@ -112,7 +115,12 @@ public class SpecConvert {
             outputPath = (parent != null ? parent : Path.of(".")).resolve(stem + "-migrated." + outFormat);
         }
 
+        // Initialise report collector for this run
+        ReportCollector.init(inputPath.getFileName().toString());
+
         io.serverlessworkflow.api.Workflow wf08 = read(inputPath);
+        int totalStates = wf08.getStates() != null ? wf08.getStates().size() : 0;
+
         io.serverlessworkflow.api.types.Workflow wf10 = convert(wf08, namespace);
 
         WorkflowFormat format = WorkflowFormat.fromPath(outputPath);
@@ -122,6 +130,22 @@ public class SpecConvert {
 
         WorkflowWriter.writeWorkflow(outputPath, wf10, format);
         System.out.println("Wrote converted file to: " + outputPath);
+
+        // Finalise and write the migration report
+        int migratedStates = wf10.getDo() != null ? wf10.getDo().size() : 0;
+        ReportCollector.get().finalise(totalStates, migratedStates);
+        MigrationReport report = ReportCollector.get().getReport();
+
+        String inputName = inputPath.getFileName().toString();
+        String stem = inputName.contains(".")
+                ? inputName.substring(0, inputName.lastIndexOf('.'))
+                : inputName;
+        Path reportPath = (outputPath.getParent() != null
+                ? outputPath.getParent() : Path.of(".")).resolve(stem + "-report.json");
+
+        ObjectMapper reportMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+        reportMapper.writeValue(reportPath.toFile(), report);
+        System.out.println("Wrote migration report to:  " + reportPath);
     }
 
     /**
@@ -228,6 +252,12 @@ public class SpecConvert {
             } else {
                 System.err.println("[WARN] Unsupported state type for state '"
                         + stateName + "' (" + state.getClass().getSimpleName() + "); skipping.");
+                ReportCollector.get().addIssue(
+                        com.specconvert.report.MigrationReport.Severity.ERROR,
+                        com.specconvert.report.MigrationReport.Category.unsupported_feature,
+                        "states[" + stateName + "]",
+                        "State type " + state.getClass().getSimpleName() + " has no 1.0 equivalent; state was skipped.",
+                        null, null, "Manually implement this state in the converted workflow.");
             }
         }
 

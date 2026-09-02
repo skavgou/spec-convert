@@ -1,5 +1,8 @@
 package com.specconvert.transformer;
 
+import com.specconvert.report.MigrationReport.Category;
+import com.specconvert.report.MigrationReport.Severity;
+import com.specconvert.report.ReportCollector;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,13 @@ public class Callback {
             Map<String, String> eventTypeByName) {
 
         List<TaskItem> steps = new ArrayList<>();
+
+        ReportCollector.get().addManualTask("high",
+                "Review callback state transformation",
+                "Callback state '" + name + "' was split into an outgoing call, "
+                        + "a listen task, and a conditional switch. Verify the converted "
+                        + "flow matches the original callback semantics.",
+                "states[" + name + "]");
 
         // ----------------------------------------------------------------
         // Step 1 — outgoing action (optional)
@@ -114,6 +124,10 @@ public class Callback {
         }
         System.err.println("[WARN] Callback state '" + stateName
                 + "' has no transition or end; emitting 'TODO' placeholder.");
+        ReportCollector.get().addIssue(Severity.ERROR, Category.state_transformation,
+                "states[" + stateName + "].transition",
+                "Callback state has no transition or end; a 'TODO' placeholder was emitted.",
+                null, null, "Set the correct next state or end condition.");
         return "TODO";
     }
 }

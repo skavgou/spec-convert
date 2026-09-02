@@ -1,8 +1,10 @@
 package com.specconvert.transformer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.specconvert.report.MigrationReport.Category;
+import com.specconvert.report.MigrationReport.Severity;
+import com.specconvert.report.ReportCollector;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 // 0.8
@@ -48,7 +50,12 @@ public class util {
         }
 
         // Fallback: unsupported action type — emit a set task with a warning marker
+        String actionName = action.getName() != null ? action.getName() : "unknown";
         System.err.println("[WARN] Action has no functionRef; emitting placeholder set task.");
+        ReportCollector.get().addIssue(Severity.WARNING, Category.unsupported_feature,
+                "action(" + actionName + ")",
+                "Action has no functionRef; a placeholder set task was emitted.",
+                null, null, "Replace the placeholder set task with the correct 1.0 call task.");
         SetTaskConfiguration cfg = new SetTaskConfiguration();
         cfg.setAdditionalProperty("_warning", "unsupported action type");
         SetTask setTask = new SetTask().withSet(new Set().withSetTaskConfiguration(cfg));
@@ -94,6 +101,11 @@ public class util {
         if (trimmed.startsWith("${") && trimmed.endsWith("}")) {
             String inner = trimmed.substring(2, trimmed.length() - 1).trim();
             System.err.println("[WARN] EL expression '" + inner + "' may need manual translation to jq syntax.");
+            ReportCollector.get().addIssue(Severity.WARNING, Category.expression_conversion,
+                    "expression",
+                    "EL expression may need manual translation to jq syntax.",
+                    trimmed, inner,
+                    "Verify the jq expression produces the expected output.");
             return inner;
         }
         return trimmed;

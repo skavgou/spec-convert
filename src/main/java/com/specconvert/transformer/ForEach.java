@@ -1,5 +1,8 @@
 package com.specconvert.transformer;
 
+import com.specconvert.report.MigrationReport.Category;
+import com.specconvert.report.MigrationReport.Severity;
+import com.specconvert.report.ReportCollector;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,11 +42,21 @@ public class ForEach {
             System.err.println("[WARN] forEach state '" + name
                     + "': outputCollection has no 1.0 equivalent; value '"
                     + state.getOutputCollection() + "' will be dropped.");
+            ReportCollector.get().addIssue(Severity.WARNING, Category.unsupported_feature,
+                    "states[" + name + "].outputCollection",
+                    "outputCollection has no 1.0 equivalent and will be dropped.",
+                    state.getOutputCollection(), null,
+                    "Manually implement output collection logic if required.");
         }
         if (state.getBatchSize() > 0) {
             System.err.println("[WARN] forEach state '" + name
                     + "': batchSize has no 1.0 equivalent; value "
                     + state.getBatchSize() + " will be dropped.");
+            ReportCollector.get().addIssue(Severity.WARNING, Category.unsupported_feature,
+                    "states[" + name + "].batchSize",
+                    "batchSize has no 1.0 equivalent and will be dropped.",
+                    String.valueOf(state.getBatchSize()), null,
+                    "Manually implement batching logic if required.");
         }
 
         List<Action> actions = state.getActions() != null
