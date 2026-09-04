@@ -67,8 +67,14 @@ public class ReportCollector {
     // Finalisation
     // ------------------------------------------------------------------
 
-    /** Compute derived summary fields and set the overall status. */
-    public void finalise(int totalStates, int migratedStates) {
+    /**
+     * Compute derived summary fields and set the overall status.
+     *
+     * @param strict when {@code true}, any warnings are treated as failures.
+     * @return {@code true} if the run should be considered a failure (i.e. strict mode
+     *         is active and at least one warning was recorded).
+     */
+    public boolean finalise(int totalStates, int migratedStates, boolean strict) {
         report.summary.statistics.totalStates    = totalStates;
         report.summary.statistics.migratedStates = migratedStates;
 
@@ -78,10 +84,12 @@ public class ReportCollector {
         if (errors > 0) {
             report.summary.overallStatus = "partial";
         } else if (warnings > 0) {
-            report.summary.overallStatus = "success_with_warnings";
+            report.summary.overallStatus = strict ? "failed" : "success_with_warnings";
         } else {
             report.summary.overallStatus = "success";
         }
+
+        return strict && warnings > 0;
     }
 
     public MigrationReport getReport() {

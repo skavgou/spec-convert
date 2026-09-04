@@ -1,0 +1,33 @@
+{
+  "migration_summary" : {
+    "source_file" : "hello.json",
+    "source_version" : "0.8",
+    "target_version" : "1.0.0",
+    "migration_date" : "2026-09-04T14:49:02.501924053Z",
+    "overall_status" : "failed",
+    "statistics" : {
+      "total_states" : 3,
+      "migrated_states" : 3,
+      "warnings_count" : 2,
+      "errors_count" : 0
+    }
+  },
+  "issues" : [ {
+    "severity" : "WARNING",
+    "category" : "expression_conversion",
+    "source_location" : "expression",
+    "message" : "EL expression may need manual translation to jq syntax.",
+    "original" : "${ fn:isAdult }",
+    "converted" : "fn:isAdult",
+    "action_required" : "Verify the jq expression produces the expected output."
+  }, {
+    "severity" : "WARNING",
+    "category" : "expression_conversion",
+    "source_location" : "expression",
+    "message" : "EL expression may need manual translation to jq syntax.",
+    "original" : "${ fn:isMinor }",
+    "converted" : "fn:isMinor",
+    "action_required" : "Verify the jq expression produces the expected output."
+  } ],
+  "manual_migration_tasks" : [ ]
+}

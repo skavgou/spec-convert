@@ -58,7 +58,7 @@ interface DurationInlineMixIn {}
  * Output is built via the 1.0 SDK (serverlessworkflow-types 7.25.0.Final).
  *
  * Usage:
- *   swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
+ *   swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>] [--strict true|false]
  *
  * Output defaults to <input-stem>-migrated.yaml if -o is not given.
  * Both JSON (.json) and YAML (.yaml / .yml) input files are supported.
@@ -77,6 +77,7 @@ public class SpecConvert {
         Path reportPath = null;
         String outFormat = "yaml";
         String namespace = "default";
+        boolean strict = false;
 
         for (int i = 0; i < args.length; i++) {
             if ("-o".equals(args[i]) || "--output".equals(args[i])) {
@@ -101,6 +102,18 @@ public class SpecConvert {
                     throw new IllegalArgumentException(args[i] + " requires a file path argument.");
                 }
                 reportPath = Path.of(args[++i]);
+            } else if ("--strict".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException("--strict requires 'true' or 'false' as an argument.");
+                }
+                String val = args[++i];
+                if ("true".equals(val)) {
+                    strict = true;
+                } else if ("false".equals(val)) {
+                    strict = false;
+                } else {
+                    throw new IllegalArgumentException("--strict requires 'true' or 'false', got: '" + val + "'.");
+                }
             } else if (inputPath == null) {
                 inputPath = Path.of(args[i]);
             } else {
@@ -140,7 +153,7 @@ public class SpecConvert {
 
         // Finalise and write the migration report
         int migratedStates = wf10.getDo() != null ? wf10.getDo().size() : 0;
-        ReportCollector.get().finalise(totalStates, migratedStates);
+        boolean failed = ReportCollector.get().finalise(totalStates, migratedStates, strict);
         MigrationReport report = ReportCollector.get().getReport();
 
         String inputName = inputPath.getFileName().toString();
@@ -154,6 +167,11 @@ public class SpecConvert {
         ObjectMapper reportMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         reportMapper.writeValue(reportPath.toFile(), report);
         System.out.println("Wrote migration report to:  " + reportPath);
+
+        if (failed) {
+            System.err.println("[ERROR] Strict mode is enabled and warnings were produced — exiting with failure.");
+            System.exit(1);
+        }
     }
 
     /**
