@@ -3,9 +3,9 @@ package com.specconvert;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.specconvert.report.MigrationReport;
 import com.specconvert.report.ReportCollector;
+import com.specconvert.report.ReportWriter;
 import com.specconvert.transformer.Callback;
 import com.specconvert.transformer.ForEach;
 import com.specconvert.transformer.Fork;
@@ -58,7 +58,7 @@ interface DurationInlineMixIn {}
  * Output is built via the 1.0 SDK (serverlessworkflow-types 7.25.0.Final).
  *
  * Usage:
- *   swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>] [--strict true|false]
+ *   swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>] [--strict true|false] [--report-format json|markdown]
  *
  * Output defaults to <input-stem>-migrated.yaml if -o is not given.
  * Both JSON (.json) and YAML (.yaml / .yml) input files are supported.
@@ -78,6 +78,7 @@ public class SpecConvert {
         String outFormat = "yaml";
         String namespace = "default";
         boolean strict = false;
+        String reportFormat = "json";
 
         for (int i = 0; i < args.length; i++) {
             if ("-o".equals(args[i]) || "--output".equals(args[i])) {
@@ -102,6 +103,16 @@ public class SpecConvert {
                     throw new IllegalArgumentException(args[i] + " requires a file path argument.");
                 }
                 reportPath = Path.of(args[++i]);
+            } else if ("--report-format".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException("--report-format requires 'json' or 'markdown' as an argument.");
+                }
+                String val = args[++i];
+                if ("json".equals(val) || "markdown".equals(val)) {
+                    reportFormat = val;
+                } else {
+                    throw new IllegalArgumentException("--report-format requires 'json' or 'markdown', got: '" + val + "'.");
+                }
             } else if ("--strict".equals(args[i])) {
                 if (i + 1 >= args.length) {
                     throw new IllegalArgumentException("--strict requires 'true' or 'false' as an argument.");
@@ -123,6 +134,22 @@ public class SpecConvert {
 
         if (inputPath == null) {
             throw new IllegalArgumentException("No input file specified.");
+        }
+
+        // Validate that an explicit --report path extension matches --report-format
+        if (reportPath != null) {
+            String reportFileName = reportPath.getFileName().toString().toLowerCase();
+            boolean extensionMatchesFormat;
+            if ("markdown".equals(reportFormat)) {
+                extensionMatchesFormat = reportFileName.endsWith(".md") || reportFileName.endsWith(".markdown");
+            } else {
+                extensionMatchesFormat = reportFileName.endsWith(".json");
+            }
+            if (!extensionMatchesFormat) {
+                throw new IllegalArgumentException(
+                        "Report path '" + reportPath.getFileName() + "' does not match --report-format '" + reportFormat + "'. "
+                        + "Expected extension: " + ("markdown".equals(reportFormat) ? ".md or .markdown" : ".json") + ".");
+            }
         }
 
         // Default output: <stem>-migrated.yaml alongside the input file
@@ -160,12 +187,12 @@ public class SpecConvert {
         String stem = inputName.contains(".")
                 ? inputName.substring(0, inputName.lastIndexOf('.'))
                 : inputName;
-        if (reportPath == null){
-                reportPath = (outputPath.getParent() != null
-                ? outputPath.getParent() : Path.of(".")).resolve(stem + "-report.json");
+        if (reportPath == null) {
+            String reportExtension = "markdown".equals(reportFormat) ? "md" : "json";
+            reportPath = (outputPath.getParent() != null
+                    ? outputPath.getParent() : Path.of(".")).resolve(stem + "-report." + reportExtension);
         }
-        ObjectMapper reportMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        reportMapper.writeValue(reportPath.toFile(), report);
+        ReportWriter.forFormat(reportFormat).write(report, reportPath);
         System.out.println("Wrote migration report to:  " + reportPath);
 
         if (failed) {

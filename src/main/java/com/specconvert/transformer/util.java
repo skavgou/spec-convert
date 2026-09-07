@@ -112,14 +112,15 @@ public class util {
     }
 
     public static void printUsage() {
-        System.out.println("Usage: swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>] [--strict true|false]");
+        System.out.println("Usage: swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>] [--strict true|false] [--report-format json|markdown]");
         System.out.println("Convert a CNCF Serverless Workflow spec 0.8 document to 1.0.");
         System.out.println();
-        System.out.println("  -o, --output       Output file path (default: <input-stem>-migrated.yaml)");
-        System.out.println("  -f, --format       Output format: yaml or json (default: yaml)");
-        System.out.println("  -n, --namespace    Namespace in the 1.0 document header (default: default)");
-        System.out.println("  -r, --report       Report file path (default: <input-stem>-report.json)");
-        System.out.println("      --strict       Treat warnings as failures; exit with code 1 if any warnings occur (default: false)");
+        System.out.println("  -o, --output           Output file path (default: <input-stem>-migrated.yaml)");
+        System.out.println("  -f, --format           Output format: yaml or json (default: yaml)");
+        System.out.println("  -n, --namespace        Namespace in the 1.0 document header (default: default)");
+        System.out.println("  -r, --report           Report file path (default: <input-stem>-report.json|md)");
+        System.out.println("      --report-format    Report format: json or markdown (default: json)");
+        System.out.println("      --strict           Treat warnings as failures; exit with code 1 if any warnings occur (default: false)");
     }
 
     /**
