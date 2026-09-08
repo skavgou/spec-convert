@@ -31,8 +31,12 @@ swf-migrate <input-file> [-o <output-file>] [-f yaml|json] [-n <namespace>]
 | `-o`, `--output` | Output file path (format inferred from extension) | `<input-stem>-migrated.yaml` |
 | `-f`, `--format` | Output format: `yaml` or `json` | `yaml` |
 | `-n`, `--namespace` | Namespace written to the 1.0 document header | `default` |
+| `-r`, `--report`| Report file path (format inferred from extension) | `<input-stem>-report.json` |
+| `--report-format`| Report file format: `json` or `md`/`markdown` | `json` |
+| `--strict`| Treat migration warnings as failures | `false` |
 
 - Input can be `.json`, `.yaml`, or `.yml`
+- In cases where the format inferred from the extesion for `-o` or `-r` conflicts with the format of `-f` or `--report-format` an error will be thrown.
 
 **Examples**
 
@@ -48,6 +52,15 @@ swf-migrate samples/hello.json -f json
 
 # Custom output path and namespace
 swf-migrate samples/hello.json -o results/hello-v1.yaml -n my-org
+
+# Custon report output
+swf-migrate samples/hello.json -r reports/hello-report.json
+
+# Report output as md
+swf-migrate samples/hello.json --report-format md
+
+# Strict Migration
+swf-migrate samples/hello.json --strict true
 ```
 
 ---
