@@ -57,7 +57,8 @@ public class MigrationReport {
         error_handling,
         authentication,
         unsupported_feature,
-        extension
+        extension,
+        validation
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

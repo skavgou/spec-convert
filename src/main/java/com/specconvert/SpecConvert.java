@@ -2,10 +2,13 @@ package com.specconvert;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.specconvert.report.MigrationReport;
 import com.specconvert.report.ReportCollector;
 import com.specconvert.report.ReportWriter;
+import com.specconvert.validator.OutputValidator;
+import com.specconvert.validator.ValidationResult;
 import com.specconvert.transformer.Callback;
 import com.specconvert.transformer.ForEach;
 import com.specconvert.transformer.Fork;
@@ -136,6 +139,22 @@ public class SpecConvert {
             throw new IllegalArgumentException("No input file specified.");
         }
 
+        // Validate that an explicit -o path extension matches -f
+        if (outputPath != null) {
+            String outputFileName = outputPath.getFileName().toString().toLowerCase();
+            boolean outputExtensionMatchesFormat;
+            if ("yaml".equals(outFormat)) {
+                outputExtensionMatchesFormat = outputFileName.endsWith(".yaml") || outputFileName.endsWith(".yml");
+            } else {
+                outputExtensionMatchesFormat = outputFileName.endsWith(".json");
+            }
+            if (!outputExtensionMatchesFormat) {
+                throw new IllegalArgumentException(
+                        "Output path '" + outputPath.getFileName() + "' does not match -f '" + outFormat + "'. "
+                        + "Expected extension: " + ("yaml".equals(outFormat) ? ".yaml or .yml" : ".json") + ".");
+            }
+        }
+
         // Validate that an explicit --report path extension matches --report-format
         if (reportPath != null) {
             String reportFileName = reportPath.getFileName().toString().toLowerCase();
@@ -177,6 +196,31 @@ public class SpecConvert {
 
         WorkflowWriter.writeWorkflow(outputPath, wf10, format);
         System.out.println("Wrote converted file to: " + outputPath);
+
+        // ----------------------------------------------------------------
+        // Validate the serialised 1.0 output
+        // ----------------------------------------------------------------
+        ObjectMapper validationMapper = util.isYaml(outputPath)
+                ? new com.fasterxml.jackson.dataformat.yaml.YAMLMapper()
+                : new ObjectMapper();
+        JsonNode outputTree = validationMapper.readTree(outputPath.toFile());
+        List<ValidationResult> validationResults = new OutputValidator().validate(outputTree);
+        for (ValidationResult vr : validationResults) {
+            System.err.println("[" + vr.severity + "] validation: " + vr.path + " — " + vr.rule + ": " + vr.message);
+            MigrationReport.Severity severity = vr.severity == ValidationResult.Severity.ERROR
+                    ? MigrationReport.Severity.ERROR
+                    : MigrationReport.Severity.WARNING;
+            ReportCollector.get().addIssue(
+                    severity,
+                    MigrationReport.Category.validation,
+                    vr.path,
+                    vr.message,
+                    null, null,
+                    vr.rule);
+        }
+        if (validationResults.isEmpty()) {
+            System.err.println("[INFO] Output validation passed with no findings.");
+        }
 
         // Finalise and write the migration report
         int migratedStates = wf10.getDo() != null ? wf10.getDo().size() : 0;

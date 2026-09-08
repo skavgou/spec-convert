@@ -1,0 +1,23 @@
+{
+  "migration_summary" : {
+    "source_file" : "callback.json",
+    "source_version" : "0.8",
+    "target_version" : "1.0.0",
+    "migration_date" : "2026-09-08T09:59:28.462692999Z",
+    "overall_status" : "success",
+    "statistics" : {
+      "total_states" : 2,
+      "migrated_states" : 2,
+      "warnings_count" : 0,
+      "errors_count" : 0
+    }
+  },
+  "issues" : [ ],
+  "manual_migration_tasks" : [ {
+    "task_id" : 1,
+    "priority" : "high",
+    "description" : "Review callback state transformation",
+    "details" : "Callback state 'RequestVitals' was split into an outgoing call, a listen task, and a conditional switch. Verify the converted flow matches the original callback semantics.",
+    "source_reference" : "states[RequestVitals]"
+  } ]
+}
