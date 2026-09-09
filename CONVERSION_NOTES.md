@@ -83,10 +83,10 @@ The 0.8 `states` array becomes a 1.0 `do` array. Each state becomes a single-key
 |----------------|------------------------------------|------------------------------|
 | `inject`       | `set`                              | `Inject`                     |
 | `sleep`        | `wait`                             | `Sleep`                      |
-| `switch`       | `switch`                           | `Switch`                     |
-| `parallel`     | `fork`                             | `Fork`                       |
+| `switch`       | `switch` (data) / `do [ listen + switch ]` (event) | `Switch`      |
+| `parallel`     | `fork`                             | `Parallel`                   |
 | `operation`    | `do` (sequential) / `fork` (parallel) | `Operation`               |
-| `event`        | `listen`                           | `Listen`                     |
+| `event`        | `listen`                           | `Event`                      |
 | `forEach`      | `for`                              | `ForEach`                    |
 | `callback`     | `do [ call + listen + switch ]`    | `Callback`                   |
 
@@ -140,11 +140,13 @@ SleepFiveSeconds:
 
 ---
 
-### `switch` → `switch`
+### `switch` → `switch` / `do [ listen + switch ]`
 
-Both `dataConditions` and `eventConditions` are supported. Each entry becomes a named case item. The `defaultCondition` becomes a case keyed `"default"`.
+The translation depends on which condition type the state uses.
 
-**Data conditions** (`dataConditions`):
+#### Data conditions (`dataConditions`) → plain `switch`
+
+Each `dataConditions` entry becomes a named switch case with a `when` predicate on the current workflow data. The `defaultCondition` becomes the `"default"` case.
 
 ```yaml
 # 0.8
@@ -152,7 +154,7 @@ name: CheckApplicant
 type: switch
 dataConditions:
   - name: Applicant is adult
-    condition: "${ fn:isAdult }"
+    condition: "${ .age >= 18 }"
     transition: ApproveApplication
 defaultCondition:
   transition: RejectApplication
@@ -161,29 +163,15 @@ defaultCondition:
 CheckApplicant:
   switch:
     - applicantIsAdult:
-        when: fn:isAdult
+        when: .age >= 18
         then: ApproveApplication
     - default:
         then: RejectApplication
 ```
 
-**Event conditions** (`eventConditions`):
+Condition names are **camelCased** for use as YAML keys (e.g. `"Applicant is adult"` → `applicantIsAdult`).
 
-```yaml
-# 0.8
-eventConditions:
-  - eventRef: visaApprovedEvent
-    transition: HandleApprovedVisa
-
-# 1.0
-- visaapprovedevent:
-    when: .received | .type == "visaApprovedEvent"
-    then: HandleApprovedVisa
-```
-
-Case names are **camelCased** from the condition name (e.g. `"Applicant is adult"` → `applicantIsAdult`). For event conditions the eventRef name is lowercased to form the case key.
-
-#### EL expression handling
+##### EL expression handling
 
 0.8 conditions written as `${ ... }` are not valid jq. The converter:
 1. Strips the `${ }` wrapper from the `when` value.
@@ -191,6 +179,54 @@ Case names are **camelCased** from the condition name (e.g. `"Applicant is adult
 3. Adds a `WARNING / expression_conversion` issue to the migration report.
 
 These conditions require **manual translation** to jq syntax before the workflow will run correctly.
+
+---
+
+#### Event conditions (`eventConditions`) → `do [ listen + switch ]`
+
+An event-based switch waits for one of N events and routes based on which arrived. The correct 1.0 idiom is a two-step composite:
+
+1. **`listen`** with `any: [...]` — one filter per `eventRef`, resolved to a CloudEvent `type`. Blocks until one of the listed events arrives and makes the received event available as task output.
+2. **`switch`** — one trivial `when: .type == "<cloudEventType>"` case per `eventCondition`, routing to the transition target. The `defaultCondition` becomes the `"default"` case.
+
+The `eventRef` name is resolved against the workflow's top-level `events` definitions to obtain the CloudEvent `type`; if no definition is found the `eventRef` name is used as-is. The `eventRef` name is lowercased to form the switch case key.
+
+```yaml
+# 0.8
+name: CheckVisaStatus
+type: switch
+eventConditions:
+  - eventRef: visaApprovedEvent
+    transition: HandleApprovedVisa
+  - eventRef: visaRejectedEvent
+    transition: HandleRejectedVisa
+defaultCondition:
+  transition: HandleNoVisaDecision
+
+# 1.0
+CheckVisaStatus:
+  do:
+    - CheckVisaStatusListen:
+        listen:
+          to:
+            any:
+              - with:
+                  type: visaApprovedEvent
+              - with:
+                  type: visaRejectedEvent
+    - CheckVisaStatusRoute:
+        switch:
+          - visaapprovedevent:
+              when: .type == "visaApprovedEvent"
+              then: HandleApprovedVisa
+          - visarejectedevent:
+              when: .type == "visaRejectedEvent"
+              then: HandleRejectedVisa
+          - default:
+              then: HandleNoVisaDecision
+```
+
+Each `EventCondition` may have a `transition` **or** an `end` marker. If `end` is present, the case `then` is set to `"end"`. If neither is present a `"TODO"` placeholder is emitted with a `WARNING / state_transformation` report entry.
 
 ---
 
