@@ -22,7 +22,7 @@ import io.serverlessworkflow.api.types.SubscriptionIterator;
 import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
 
-public class Listen {
+public class Event {
     /**
      * Convert a 0.8 event state to a 1.0 listen task.
      *
@@ -43,14 +43,14 @@ public class Listen {
      *   entries have different actions, each distinct action list is appended in order.
      *   If no onEvents entries have any actions, foreach is omitted entirely.
      */
-    public static TaskItem handleListen(
+    public static TaskItem handleEvent(
             String name,
             EventState state,
             Map<String, String> eventTypeByName) {
-                return handleListenFunction(name, state, eventTypeByName);
+                return handleEventFunction(name, state, eventTypeByName);
             }
 
-    protected static TaskItem handleListenFunction(
+    protected static TaskItem handleEventFunction(
             String name,
             EventState state,
             Map<String, String> eventTypeByName) {

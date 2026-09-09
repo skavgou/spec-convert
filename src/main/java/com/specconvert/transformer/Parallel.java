@@ -14,7 +14,7 @@ import io.serverlessworkflow.api.types.ForkTaskConfiguration;
 import io.serverlessworkflow.api.types.Task;
 import io.serverlessworkflow.api.types.TaskItem;
 
-public class Fork {
+public class Parallel {
     /**
      * Convert a 0.8 parallel state to a 1.0 fork task.
      *
@@ -22,11 +22,11 @@ public class Fork {
      *   allOf   → compete: false  (all branches must finish)
      *   atLeast → compete: true   (first N to complete wins; 1.0 models this as compete)
      */
-    public static TaskItem handleFork(String name, ParallelState state) {
-        return handleForkFunction(name, state);
+    public static TaskItem handleParallel(String name, ParallelState state) {
+        return handleParallelFunction(name, state);
     }
 
-    protected static TaskItem handleForkFunction(String name, ParallelState state) {
+    protected static TaskItem handleParallelFunction(String name, ParallelState state) {
         // compete: true when only a subset needs to complete (atLeast)
         boolean compete = state.getCompletionType() == ParallelState.CompletionType.AT_LEAST;
 

@@ -10,11 +10,11 @@ import com.specconvert.report.ReportWriter;
 import com.specconvert.validator.OutputValidator;
 import com.specconvert.validator.ValidationResult;
 import com.specconvert.transformer.Callback;
+import com.specconvert.transformer.Event;
 import com.specconvert.transformer.ForEach;
-import com.specconvert.transformer.Fork;
 import com.specconvert.transformer.Inject;
-import com.specconvert.transformer.Listen;
 import com.specconvert.transformer.Operation;
+import com.specconvert.transformer.Parallel;
 import com.specconvert.transformer.Sleep;
 import com.specconvert.transformer.Switch;
 import com.specconvert.transformer.util;
@@ -79,6 +79,7 @@ public class SpecConvert {
         Path outputPath = null;
         Path reportPath = null;
         String outFormat = "yaml";
+        boolean outFormatExplicit = false;
         String namespace = "default";
         boolean strict = false;
         String reportFormat = "json";
@@ -96,6 +97,7 @@ public class SpecConvert {
                     throw new IllegalArgumentException(args[i] + " requires either 'json' or 'yaml' as format.");
                 }
                 outFormat = (args[++i]);
+                outFormatExplicit = true;
             } else if ("-n".equals(args[i]) || "--namespace".equals(args[i])) {
                 if (i + 1 >= args.length) {
                     throw new IllegalArgumentException(args[i] + " requires a namespace argument.");
@@ -139,20 +141,26 @@ public class SpecConvert {
             throw new IllegalArgumentException("No input file specified.");
         }
 
-        // Validate that an explicit -o path extension matches -f
+        // If -o was given without -f, infer the format from the output file extension.
+        // If both were given explicitly and they conflict, throw.
         if (outputPath != null) {
             String outputFileName = outputPath.getFileName().toString().toLowerCase();
-            boolean outputExtensionMatchesFormat;
-            if ("yaml".equals(outFormat)) {
-                outputExtensionMatchesFormat = outputFileName.endsWith(".yaml") || outputFileName.endsWith(".yml");
-            } else {
-                outputExtensionMatchesFormat = outputFileName.endsWith(".json");
+            boolean isJsonExt = outputFileName.endsWith(".json");
+            boolean isYamlExt = outputFileName.endsWith(".yaml") || outputFileName.endsWith(".yml");
+
+            if (outFormatExplicit) {
+                // Both -o and -f supplied — they must agree.
+                boolean matches = "json".equals(outFormat) ? isJsonExt : isYamlExt;
+                if (!matches) {
+                    throw new IllegalArgumentException(
+                            "Output path '" + outputPath.getFileName() + "' does not match -f '" + outFormat + "'. "
+                            + "Expected extension: " + ("yaml".equals(outFormat) ? ".yaml or .yml" : ".json") + ".");
+                }
+            } else if (isJsonExt) {
+                // -o given alone with a .json extension — infer json format
+                outFormat = "json";
             }
-            if (!outputExtensionMatchesFormat) {
-                throw new IllegalArgumentException(
-                        "Output path '" + outputPath.getFileName() + "' does not match -f '" + outFormat + "'. "
-                        + "Expected extension: " + ("yaml".equals(outFormat) ? ".yaml or .yml" : ".json") + ".");
-            }
+            // .yaml/.yml with no -f keeps the default "yaml"; any other extension also keeps "yaml"
         }
 
         // Validate that an explicit --report path extension matches --report-format
@@ -332,13 +340,13 @@ public class SpecConvert {
                 items.add(Switch.handleSwitch(stateName, (SwitchState) state));
 
             } else if (state instanceof ParallelState) {
-                items.add(Fork.handleFork(stateName, (ParallelState) state));
+                items.add(Parallel.handleParallel(stateName, (ParallelState) state));
 
             } else if (state instanceof OperationState) {
                 items.add(Operation.handleOperation(stateName, (OperationState) state));
 
             } else if (state instanceof EventState) {
-                items.add(Listen.handleListen(stateName, (EventState) state, eventTypeByName));
+                items.add(Event.handleEvent(stateName, (EventState) state, eventTypeByName));
 
             } else if (state instanceof ForEachState) {
                 items.add(ForEach.handleForEach(stateName, (ForEachState) state));
